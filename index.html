@@ -187,7 +187,7 @@
   </div>
 
   <!-- RIGHT PANEL -->
-  <div class="col right-col">
+  <div class="col right-col" style="overflow-y:auto">
     <div class="card">
       <div class="lbl">Direction</div>
       <div class="dir-grid">
@@ -212,7 +212,23 @@
       <div class="lbl">Hair</div><div class="preset-row" id="hair-presets"></div>
     </div>
     <div class="card">
-      <div class="lbl">Wardrobe</div><div class="wgrid" id="wgrid"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <div class="lbl" style="margin-bottom:0">Wardrobe</div>
+        <button class="btn" id="new-cloth-btn" style="padding:2px 7px;font-size:10px">+ New</button>
+      </div>
+      <div class="wgrid" id="wgrid"></div>
+    </div>
+    <div class="card" id="cloth-editor-card" style="display:none">
+      <div class="lbl">Clothing Editor</div>
+      <div class="srow"><label>Name</label><input id="cloth-name" type="text" placeholder="e.g. Red Coat" style="flex:1;padding:2px 4px;background:#11111b;border:0.5px solid #45475a;border-radius:3px;color:#cdd6f4;font-family:system-ui,sans-serif;font-size:11px"></div>
+      <div class="srow"><label>Slot</label><select id="cloth-slot" style="flex:1;background:#11111b;border:0.5px solid #45475a;border-radius:3px;color:#cdd6f4;font-family:system-ui,sans-serif;font-size:11px;padding:2px 4px"><option value="top">Top</option><option value="legs">Legs</option><option value="feet">Feet</option><option value="head">Head</option></select></div>
+      <div class="srow"><label>Style</label><select id="cloth-style" style="flex:1;background:#11111b;border:0.5px solid #45475a;border-radius:3px;color:#cdd6f4;font-family:system-ui,sans-serif;font-size:11px;padding:2px 4px"></select></div>
+      <div class="srow"><label>Color</label><input id="cloth-color" type="color" style="flex:1;height:22px;border-radius:3px;border:0.5px solid #45475a;cursor:pointer;padding:1px;background:transparent"></div>
+      <div style="display:flex;gap:4px;margin-top:6px">
+        <button class="btn" id="cloth-save-btn" style="flex:1;padding:5px">Save</button>
+        <button class="btn" id="cloth-delete-btn" style="flex:1;padding:5px;display:none">Delete</button>
+        <button class="btn" id="cloth-cancel-btn" style="flex:1;padding:5px">Cancel</button>
+      </div>
     </div>
     <div class="card">
       <div class="lbl">Body Parts</div>

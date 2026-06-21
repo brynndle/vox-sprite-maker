@@ -11,6 +11,7 @@ import { resetPose, animPose } from '../animation/poses.js';
 import { pushUndo, doUndo, doRedo } from './undo.js';
 import { exportFrame, exportStaticSheet, exportWalkSheet } from '../export/spritesheet.js';
 import { savedParts, savePart, resetPart } from '../character/parts.js';
+import { customWardrobe, saveCloth, deleteCloth } from '../character/wardrobe.js';
 
 // ── Undo buttons ──────────────────────────────────────────────────────────────
 document.getElementById('undo-btn').addEventListener('click', doUndo);
@@ -146,23 +147,113 @@ buildPresetUI('nose-presets',  NOSE_PRESETS,  () => state.activeNose,   k => { s
 buildPresetUI('hair-presets',  HAIR_PRESETS,  () => state.activeHair,   k => { state.activeHair = k;   rebuildHair(SK); });
 
 // ── Wardrobe grid ─────────────────────────────────────────────────────────────
+const STYLES_BY_SLOT = {
+  top:  ['shirt', 'coat'],
+  legs: ['pants', 'shorts'],
+  feet: ['shoes'],
+  head: ['hat'],
+};
+
 const wg = document.getElementById('wgrid');
-Object.entries(WDEFS).forEach(([k, d]) => {
-  const b = document.createElement('button');
-  b.className = 'btn wbtn'; b.dataset.piece = k;
-  b.innerHTML = `👕 ${d.label}`;
-  b.addEventListener('click', () => {
-    const slot = WDEFS[k].slot;
-    if (equipped[slot] === k) { delete equipped[slot]; b.classList.remove('eq'); }
-    else {
-      const p = equipped[slot];
-      if (p) document.querySelector(`[data-piece="${p}"]`)?.classList.remove('eq');
-      equipped[slot] = k; b.classList.add('eq');
+
+function buildWardrobeGrid() {
+  wg.innerHTML = '';
+  function addPiece(key, def, isCustom) {
+    const b = document.createElement('button');
+    b.className = 'btn wbtn'; b.dataset.piece = key;
+    if (isCustom) b.style.cssText = 'border-color:#89b4fa';
+    if (equipped[def.slot] === key) b.classList.add('eq');
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = def.label;
+    b.appendChild(nameSpan);
+
+    if (isCustom) {
+      const editSpan = document.createElement('span');
+      editSpan.textContent = '✏';
+      editSpan.style.cssText = 'font-size:9px;color:#89b4fa;cursor:pointer;line-height:1.2';
+      editSpan.addEventListener('click', e => { e.stopPropagation(); openClothEditor(key, def); });
+      b.appendChild(editSpan);
     }
-    rebuildCloth(SK, root, clothV, getDims);
+
+    b.addEventListener('click', () => {
+      if (equipped[def.slot] === key) { delete equipped[def.slot]; b.classList.remove('eq'); }
+      else {
+        const prev = equipped[def.slot];
+        if (prev) document.querySelector(`[data-piece="${prev}"]`)?.classList.remove('eq');
+        equipped[def.slot] = key; b.classList.add('eq');
+      }
+      rebuildCloth(SK, root, clothV, getDims);
+    });
+    wg.appendChild(b);
+  }
+  Object.entries(WDEFS).forEach(([k, d]) => addPiece(k, d, false));
+  Object.entries(customWardrobe).forEach(([k, d]) => addPiece(k, d, true));
+}
+
+// ── Clothing editor ────────────────────────────────────────────────────────────
+let _editingClothId = null;
+
+function updateStyleOptions(slot, current) {
+  const sel = document.getElementById('cloth-style');
+  sel.innerHTML = '';
+  (STYLES_BY_SLOT[slot] || []).forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s[0].toUpperCase() + s.slice(1);
+    sel.appendChild(o);
   });
-  wg.appendChild(b);
+  if (current) sel.value = current;
+}
+
+function openClothEditor(id, def) {
+  _editingClothId = id || null;
+  document.getElementById('cloth-name').value = def?.label || '';
+  const slot = def?.slot || 'top';
+  document.getElementById('cloth-slot').value = slot;
+  updateStyleOptions(slot, def?.style);
+  document.getElementById('cloth-color').value = def?.color || '#888888';
+  document.getElementById('cloth-delete-btn').style.display = id ? '' : 'none';
+  document.getElementById('cloth-editor-card').style.display = '';
+}
+
+function closeClothEditor() {
+  _editingClothId = null;
+  document.getElementById('cloth-editor-card').style.display = 'none';
+}
+
+document.getElementById('new-cloth-btn').addEventListener('click', () => openClothEditor(null, null));
+document.getElementById('cloth-cancel-btn').addEventListener('click', closeClothEditor);
+
+document.getElementById('cloth-slot').addEventListener('change', e => {
+  updateStyleOptions(e.target.value, null);
 });
+
+document.getElementById('cloth-save-btn').addEventListener('click', () => {
+  const label = document.getElementById('cloth-name').value.trim();
+  if (!label) { alert('Please enter a name.'); return; }
+  const slot  = document.getElementById('cloth-slot').value;
+  const style = document.getElementById('cloth-style').value;
+  const color = document.getElementById('cloth-color').value;
+  const id = _editingClothId || ('c' + Date.now());
+  saveCloth(id, { label, slot, style, color });
+  closeClothEditor();
+  buildWardrobeGrid();
+});
+
+document.getElementById('cloth-delete-btn').addEventListener('click', () => {
+  if (!_editingClothId) return;
+  const def = customWardrobe[_editingClothId];
+  if (!confirm(`Delete "${def?.label}"?`)) return;
+  if (def && equipped[def.slot] === _editingClothId) {
+    delete equipped[def.slot];
+    rebuildCloth(SK, root, clothV, getDims);
+  }
+  deleteCloth(_editingClothId);
+  closeClothEditor();
+  buildWardrobeGrid();
+});
+
+buildWardrobeGrid();
 
 // ── Export buttons ────────────────────────────────────────────────────────────
 document.getElementById('expF').addEventListener('click', exportFrame);

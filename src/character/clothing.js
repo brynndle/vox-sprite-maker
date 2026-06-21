@@ -1,12 +1,13 @@
 import { voxBlock } from './voxels.js';
+import { customWardrobe } from './wardrobe.js';
 
 export const WDEFS = {
-  shirt:  { label: 'Shirt',  slot: 'top',  color: '#e63946' },
-  pants:  { label: 'Pants',  slot: 'legs', color: '#2d3a4a' },
-  coat:   { label: 'Coat',   slot: 'top',  color: '#1a2a1a' },
-  shoes:  { label: 'Shoes',  slot: 'feet', color: '#222233' },
-  hat:    { label: 'Hat',    slot: 'head', color: '#8b0000' },
-  shorts: { label: 'Shorts', slot: 'legs', color: '#1a4a8a' },
+  shirt:  { label: 'Shirt',  slot: 'top',  color: '#e63946', style: 'shirt' },
+  pants:  { label: 'Pants',  slot: 'legs', color: '#2d3a4a', style: 'pants' },
+  coat:   { label: 'Coat',   slot: 'top',  color: '#1a2a1a', style: 'coat' },
+  shoes:  { label: 'Shoes',  slot: 'feet', color: '#222233', style: 'shoes' },
+  hat:    { label: 'Hat',    slot: 'head', color: '#8b0000', style: 'hat' },
+  shorts: { label: 'Shorts', slot: 'legs', color: '#1a4a8a', style: 'shorts' },
 };
 
 export const equipped = {};
@@ -31,23 +32,24 @@ export function rebuildCloth(SK, root, clothV, getDims) {
   }
 
   Object.entries(equipped).forEach(([slot, k]) => {
-    const d = WDEFS[k];
+    const d = WDEFS[k] || customWardrobe[k];
+    if (!d) return;
     if (slot === 'top') {
-      const ext = k === 'coat' ? Math.round(sc * 2) : 0;
+      const ext = d.style === 'coat' ? Math.round(sc * 2) : 0;
       const tb = cBlock(TW + C * 2, TH + ext, TD + C * 2, d.color);
       tb.g.position.set(-C * 0.5, (torsoY - ext), -C * 0.5);
       root.add(tb.g);
       ['l', 'r'].forEach(s => {
         const us = cBlock(AW + C, UAH, AW + C, d.color, { roundCorners: true });
         us.g.position.set(0, -UAH, 0); SK[s + 'Arm'].add(us.g);
-        if (k === 'coat') {
+        if (d.style === 'coat') {
           const ls = cBlock(AW + C, LAH, AW + C, d.color, { roundCorners: true });
           ls.g.position.set(0, -LAH, 0); SK[s + 'Elbow'].add(ls.g);
         }
       });
     }
     if (slot === 'legs') {
-      const isS = k === 'shorts';
+      const isS = d.style === 'shorts';
       ['l', 'r'].forEach(s => {
         const ul = cBlock(LW + C, ULH, LW + C, d.color); ul.g.position.set(0, -ULH, 0); SK[s + 'Leg'].add(ul.g);
         if (!isS) { const ll = cBlock(LW + C, LLH, LW + C, d.color); ll.g.position.set(0, -LLH, 0); SK[s + 'Knee'].add(ll.g); }
