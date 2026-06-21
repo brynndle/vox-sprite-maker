@@ -4,11 +4,13 @@ import { renderer, cam, scene } from './renderer/scene.js';
 import { renderOutputs } from './renderer/pixelOutput.js';
 import { state } from './state.js';
 import './ui/controls.js';
+import { updateSkeleton } from './ui/poseEditor.js';
 
 let frameCount = 0;
 function loop() {
   requestAnimationFrame(loop);
   if (state.playing) { state.tick += 0.016; animPose(state.tick % 1, SK, root); }
+  updateSkeleton();
   renderer.render(scene, cam);
   frameCount++;
   if (frameCount % 3 === 0) renderOutputs();

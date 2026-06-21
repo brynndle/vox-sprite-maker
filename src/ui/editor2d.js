@@ -204,9 +204,10 @@ export function exit2D() {
   document.getElementById('mode2d-btn').classList.remove('on');
   document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === 'paint'));
   state.mode = 'paint';
-  document.getElementById('pp').style.display = '';
-  document.getElementById('sp').style.display = 'none';
-  document.getElementById('cp').style.display = 'none';
+  document.getElementById('pp').style.display    = '';
+  document.getElementById('sp').style.display    = 'none';
+  document.getElementById('cp').style.display    = 'none';
+  document.getElementById('posep').style.display = 'none';
 }
 
 document.getElementById('c2d-exit-btn').addEventListener('click', exit2D);

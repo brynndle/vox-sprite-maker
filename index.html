@@ -67,6 +67,7 @@
         <button class="btn mbtn on" data-mode="paint">Paint</button>
         <button class="btn mbtn" data-mode="sculpt">Sculpt</button>
         <button class="btn mbtn" data-mode="cloth">Cloth</button>
+        <button class="btn mbtn" data-mode="pose">Pose</button>
       </div>
       <button class="btn" id="mode2d-btn" style="width:100%;padding:4px;text-align:center;margin-bottom:6px">✏ 2D Sketch</button>
       <div id="undo-row">
@@ -117,6 +118,14 @@
         </div>
       </div>
       <div id="cp" style="display:none;font-size:10px;color:#6c7086;padding:4px 0">Equip a piece then paint it.</div>
+      <div id="posep" style="display:none">
+        <div style="font-size:10px;color:#6c7086;line-height:1.7;margin-bottom:5px">Drag joint handles to rotate.<br>Shift+drag to orbit.</div>
+        <button class="btn tbtn" id="reset-pose-btn">↺ Reset pose</button>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:6px">
+          <input type="checkbox" id="show-skel-chk" style="accent-color:#89b4fa">
+          <label for="show-skel-chk" style="font-size:10px;color:#cdd6f4;cursor:pointer">Show skeleton</label>
+        </div>
+      </div>
     </div>
     <div class="card" style="flex:1;overflow-y:auto">
       <div class="lbl">Body shape</div>

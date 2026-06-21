@@ -13,6 +13,11 @@ import { exportFrame, exportStaticSheet, exportWalkSheet } from '../export/sprit
 import { savedParts, savePart, resetPart } from '../character/parts.js';
 import { customWardrobe, saveCloth, deleteCloth } from '../character/wardrobe.js';
 import { enter2D, exit2D } from './editor2d.js';
+import {
+  enterPoseMode, exitPoseMode,
+  posePointerDown, posePointerMove, posePointerUp, isPoseDragging,
+  resetSkeletonPose, setSkeletonVisible, isSkeletonVisible,
+} from './poseEditor.js';
 
 // ── Undo buttons ──────────────────────────────────────────────────────────────
 document.getElementById('undo-btn').addEventListener('click', doUndo);
@@ -48,11 +53,14 @@ document.getElementById('round-strength').addEventListener('input', e => {
 
 // ── Mode buttons ──────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
+  if (state.mode === 'pose') exitPoseMode();
   document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); state.mode = b.dataset.mode; hideGhost();
-  document.getElementById('pp').style.display = state.mode === 'paint' ? '' : 'none';
-  document.getElementById('sp').style.display = state.mode === 'sculpt' ? '' : 'none';
-  document.getElementById('cp').style.display = state.mode === 'cloth' ? '' : 'none';
+  if (state.mode === 'pose') enterPoseMode();
+  document.getElementById('pp').style.display    = state.mode === 'paint'  ? '' : 'none';
+  document.getElementById('sp').style.display    = state.mode === 'sculpt' ? '' : 'none';
+  document.getElementById('cp').style.display    = state.mode === 'cloth'  ? '' : 'none';
+  document.getElementById('posep').style.display = state.mode === 'pose'   ? '' : 'none';
 }));
 
 // ── 2D sketch mode button ─────────────────────────────────────────────────────
@@ -64,6 +72,12 @@ document.getElementById('mode2d-btn').addEventListener('click', function () {
   } else {
     exit2D();
   }
+});
+
+// ── Pose panel controls ───────────────────────────────────────────────────────
+document.getElementById('reset-pose-btn').addEventListener('click', resetSkeletonPose);
+document.getElementById('show-skel-chk').addEventListener('change', e => {
+  setSkeletonVisible(e.target.checked);
 });
 
 // ── Tool buttons ──────────────────────────────────────────────────────────────
@@ -512,6 +526,14 @@ c3.addEventListener('contextmenu', e => e.preventDefault());
 c3.addEventListener('mousedown', e => {
   lmx = e.clientX; lmy = e.clientY;
   if (e.button === 2 || e.shiftKey) { isOrbiting = true; return; }
+  if (state.mode === 'pose') {
+    const r = c3.getBoundingClientRect();
+    m2.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    m2.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    ray.setFromCamera(m2, cam);
+    posePointerDown(e, ray);
+    return; // never paint/sculpt in pose mode
+  }
   isPainting = true;
   if (state.mode === 'paint' || state.mode === 'cloth') { strokeUndoMap = new Map(); doAct(e); }
   else if (state.mode === 'sculpt' && state.sculptTool === 'round') { roundStroke = []; doAct(e); }
@@ -521,10 +543,12 @@ c3.addEventListener('mousemove', e => {
   const dx = e.clientX - lmx, dy = e.clientY - lmy;
   lmx = e.clientX; lmy = e.clientY;
   if (isOrbiting) { state.camT -= dx * 0.007; state.camP = Math.max(-0.4, Math.min(1.2, state.camP + dy * 0.006)); syncCam(); }
+  else if (isPoseDragging()) { posePointerMove(e); }
   else if (isPainting && (state.mode === 'paint' || state.mode === 'cloth')) doAct(e);
   else if (isPainting && state.mode === 'sculpt' && state.sculptTool === 'round') doAct(e);
 });
 window.addEventListener('mouseup', () => {
+  posePointerUp();
   if (isPainting && strokeUndoMap && strokeUndoMap.size > 0) {
     const entries = [...strokeUndoMap.entries()], newCol = state.col;
     pushUndo({
