@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { state, PAL } from '../state.js';
-import { cam, syncCam } from '../renderer/scene.js';
+import { cam, syncCam, scene } from '../renderer/scene.js';
 import { setOutSize } from '../renderer/pixelOutput.js';
 import { SK, root, bodyV, clothV, partMap, rebuild, applySkin } from '../character/skeleton.js';
 import { getDims, mat, GRAY, BG, U } from '../character/voxels.js';
@@ -12,6 +12,7 @@ import { pushUndo, doUndo, doRedo } from './undo.js';
 import { exportFrame, exportStaticSheet, exportWalkSheet } from '../export/spritesheet.js';
 import { savedParts, savePart, resetPart } from '../character/parts.js';
 import { customWardrobe, saveCloth, deleteCloth } from '../character/wardrobe.js';
+import { enter2D, exit2D } from './editor2d.js';
 
 // ── Undo buttons ──────────────────────────────────────────────────────────────
 document.getElementById('undo-btn').addEventListener('click', doUndo);
@@ -48,11 +49,22 @@ document.getElementById('round-strength').addEventListener('input', e => {
 // ── Mode buttons ──────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('on'));
-  b.classList.add('on'); state.mode = b.dataset.mode;
+  b.classList.add('on'); state.mode = b.dataset.mode; hideGhost();
   document.getElementById('pp').style.display = state.mode === 'paint' ? '' : 'none';
   document.getElementById('sp').style.display = state.mode === 'sculpt' ? '' : 'none';
   document.getElementById('cp').style.display = state.mode === 'cloth' ? '' : 'none';
 }));
+
+// ── 2D sketch mode button ─────────────────────────────────────────────────────
+document.getElementById('mode2d-btn').addEventListener('click', function () {
+  const active = this.classList.toggle('on');
+  if (active) {
+    document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('on'));
+    enter2D();
+  } else {
+    exit2D();
+  }
+});
 
 // ── Tool buttons ──────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
@@ -531,3 +543,65 @@ window.addEventListener('mouseup', () => {
   roundStroke = null;
   isPainting = false; isOrbiting = false;
 });
+
+// ── Ghost cursor (sculpt mode hover preview) ─────────────────────────────────
+const _gBoxGeo  = new THREE.BoxGeometry(1, 1, 1);
+const _gEdgeGeo = new THREE.EdgesGeometry(_gBoxGeo);
+const _gSphGeo  = new THREE.EdgesGeometry(new THREE.SphereGeometry(1, 10, 7));
+
+const _gFillAdd = new THREE.MeshBasicMaterial({ color: 0x89b4fa, transparent: true, opacity: 0.18, depthWrite: false });
+const _gFillDel = new THREE.MeshBasicMaterial({ color: 0xf38ba8, transparent: true, opacity: 0.18, depthWrite: false });
+const _gLineAdd = new THREE.LineBasicMaterial({ color: 0x89b4fa, depthTest: false });
+const _gLineDel = new THREE.LineBasicMaterial({ color: 0xf38ba8, depthTest: false });
+const _gLineSph = new THREE.LineBasicMaterial({ color: 0xcba6f7, depthTest: false, transparent: true, opacity: 0.75 });
+
+const ghostFill   = new THREE.Mesh(_gBoxGeo, _gFillAdd);
+const ghostEdge   = new THREE.LineSegments(_gEdgeGeo, _gLineAdd);
+const ghostSphere = new THREE.LineSegments(_gSphGeo, _gLineSph);
+[ghostFill, ghostEdge, ghostSphere].forEach(o => { o.visible = false; o.raycast = () => {}; scene.add(o); });
+
+function hideGhost() {
+  ghostFill.visible = ghostEdge.visible = ghostSphere.visible = false;
+}
+
+const _gWP = new THREE.Vector3();
+function updateGhostCursor(e) {
+  if (state.mode !== 'sculpt' || isOrbiting) { hideGhost(); return; }
+  const hit = getHit(e);
+  if (!hit) { hideGhost(); return; }
+
+  const mesh = hit.object;
+  const isCmd = e.metaKey || e.ctrlKey;
+  const isDel = isCmd || state.sculptTool === 'delete';
+  const isRound = !isCmd && state.sculptTool === 'round';
+
+  if (isRound) {
+    ghostFill.visible = ghostEdge.visible = false;
+    ghostSphere.scale.setScalar(state.roundRadius);
+    ghostSphere.position.copy(hit.point);
+    ghostSphere.visible = true;
+    return;
+  }
+
+  ghostSphere.visible = false;
+  const half = Math.floor(state.sculptSize / 2);
+  const size = (2 * half + 1) * U;
+
+  mesh.getWorldPosition(_gWP);
+  let px = _gWP.x, py = _gWP.y, pz = _gWP.z;
+  if (!isDel) {
+    const n = hit.face.normal.clone().transformDirection(mesh.matrixWorld).round();
+    px += n.x * U; py += n.y * U; pz += n.z * U;
+  }
+
+  ghostFill.material  = isDel ? _gFillDel : _gFillAdd;
+  ghostEdge.material  = isDel ? _gLineDel : _gLineAdd;
+  ghostFill.scale.set(size, size, size);
+  ghostEdge.scale.set(size, size, size);
+  ghostFill.position.set(px, py, pz);
+  ghostEdge.position.set(px, py, pz);
+  ghostFill.visible = ghostEdge.visible = true;
+}
+
+c3.addEventListener('mousemove', updateGhostCursor);
+c3.addEventListener('mouseleave', hideGhost);
