@@ -1,28 +1,65 @@
-import { scene, cam, syncCam } from '../renderer/scene.js';
-import { outC, renderPixelArt, renderOutputs } from '../renderer/pixelOutput.js';
+import { renderPixelArt, outC, outX, outSize } from '../renderer/pixelOutput.js';
+import { DIRS_8 } from '../constants.js';
 import { state } from '../state.js';
+import { animPose, resetPose } from '../animation/poses.js';
+import { SK, root } from '../character/skeleton.js';
 
-const D8 = [2.36, 3.14, -2.36, 1.57, 0.01, -1.57, 0.79, -0.79];
+const EXPORT_PHI = 0.15; // fixed vertical angle for all sheet exports
 
-export function exportFrame() {
-  renderOutputs();
+function download(canvas, filename) {
   const a = document.createElement('a');
-  a.download = `sprite_${state.outRes}px.png`; a.href = outC.toDataURL(); a.click();
+  a.download = filename;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
 }
 
-export function exportSpritesheet() {
-  const r = state.outRes;
-  const sh = document.createElement('canvas');
-  sh.width = r * 8; sh.height = r;
-  const ctx = sh.getContext('2d'), sv = state.camT;
-  D8.forEach((ang, i) => {
-    state.camT = ang; syncCam();
-    const tmp = document.createElement('canvas'); tmp.width = r; tmp.height = r;
-    renderPixelArt(tmp.getContext('2d'), r);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(tmp, i * r, 0, r, r);
+// Single frame — uses current editor angle
+export function exportFrame() {
+  const { w, h } = outSize;
+  renderPixelArt(state.camT, state.camP, outX);
+  download(outC, `sprite_${w}x${h}.png`);
+}
+
+// 8-direction static — 8 frames side by side at standard angle
+export function exportStaticSheet() {
+  const { w, h } = outSize;
+  const c = document.createElement('canvas');
+  c.width = w * 8; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const savedT = state.camT;
+  DIRS_8.forEach((dir, i) => {
+    state.camT = dir.theta;
+    renderPixelArt(dir.theta, EXPORT_PHI, ctx, i * w, 0);
   });
-  state.camT = sv; syncCam();
-  const a = document.createElement('a');
-  a.download = `spritesheet_8dir_${r}px.png`; a.href = sh.toDataURL(); a.click();
+  state.camT = savedT;
+  download(c, `sprite_8dir_${w * 8}x${h}.png`);
+}
+
+// Walk animation — 8 dirs × 4 frames horizontal strip at standard angle
+export function exportWalkSheet() {
+  const { w, h } = outSize;
+  const FRAMES = 4;
+  const savedAnim = state.anim;
+  const savedT = state.camT;
+  state.anim = 'walk';
+
+  const c = document.createElement('canvas');
+  c.width = w * DIRS_8.length * FRAMES;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  DIRS_8.forEach((dir, di) => {
+    for (let f = 0; f < FRAMES; f++) {
+      animPose(f / FRAMES, SK, root);
+      const x = (di * FRAMES + f) * w;
+      renderPixelArt(dir.theta, EXPORT_PHI, ctx, x, 0);
+    }
+  });
+
+  state.anim = savedAnim;
+  state.camT = savedT;
+  resetPose(SK, root);
+  download(c, `sprite_walk_${w * DIRS_8.length * FRAMES}x${h}.png`);
 }

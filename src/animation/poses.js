@@ -1,4 +1,4 @@
-import { MODEL_SCALE } from '../character/voxels.js';
+import { VOXEL_SIZE } from '../constants.js';
 import { state } from '../state.js';
 
 export function resetPose(SK, root) {
@@ -26,7 +26,7 @@ export function animPose(t, SK, root) {
     SK.lLeg.rotation.x = sw * 0.7; SK.rLeg.rotation.x = -sw * 0.7;
     SK.lKnee.rotation.x = sw < 0 ? -sw * 0.5 : 0;
     SK.rKnee.rotation.x = sw > 0 ? sw * 0.5 : 0;
-    root.position.y = (Math.abs(s) * 0.15 - 0.05) * MODEL_SCALE;
+    root.position.y = (Math.abs(s) * 0.15 - 0.05) * VOXEL_SIZE;
   } else if (state.anim === 'run') {
     const sw = s * 0.9;
     SK.lArm.rotation.x = -sw * 1.1; SK.rArm.rotation.x = sw * 1.1;
@@ -36,7 +36,7 @@ export function animPose(t, SK, root) {
     SK.lLeg.rotation.x = sw * 1.1; SK.rLeg.rotation.x = -sw * 1.1;
     SK.lKnee.rotation.x = sw < 0 ? -sw * 1.3 : 0;
     SK.rKnee.rotation.x = sw > 0 ? sw * 1.3 : 0;
-    root.position.y = (Math.abs(s) * 0.35 - 0.1) * MODEL_SCALE;
+    root.position.y = (Math.abs(s) * 0.35 - 0.1) * VOXEL_SIZE;
     root.rotation.x = -0.07;
   } else if (state.anim === 'sit') {
     SK.lLeg.rotation.x = -1.5; SK.rLeg.rotation.x = -1.5;
@@ -44,6 +44,6 @@ export function animPose(t, SK, root) {
     SK.lArm.rotation.x = 0.3; SK.rArm.rotation.x = 0.3;
     SK.lArm.rotation.z = 0.5; SK.rArm.rotation.z = -0.5;
     SK.lElbow.rotation.x = 0.4; SK.rElbow.rotation.x = 0.4;
-    root.position.y = -MODEL_SCALE * 4;
+    root.position.y = -VOXEL_SIZE * 4;
   }
 }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { state, PAL } from '../state.js';
 import { cam, syncCam } from '../renderer/scene.js';
-import { setOutRes } from '../renderer/pixelOutput.js';
+import { setOutSize } from '../renderer/pixelOutput.js';
 import { SK, root, bodyV, clothV, partMap, rebuild, applySkin } from '../character/skeleton.js';
 import { getDims, mat, GRAY, BG, U } from '../character/voxels.js';
 import { rebuildCloth, WDEFS, equipped } from '../character/clothing.js';
@@ -9,7 +9,8 @@ import { rebuildFace, EYE_PRESETS, BROW_PRESETS, MOUTH_PRESETS, NOSE_PRESETS } f
 import { rebuildHair, HAIR_PRESETS } from '../character/hair.js';
 import { resetPose, animPose } from '../animation/poses.js';
 import { pushUndo, doUndo, doRedo } from './undo.js';
-import { exportFrame, exportSpritesheet } from '../export/spritesheet.js';
+import { exportFrame, exportStaticSheet, exportWalkSheet } from '../export/spritesheet.js';
+import { savedParts, savePart, resetPart } from '../character/parts.js';
 
 // ── Undo buttons ──────────────────────────────────────────────────────────────
 document.getElementById('undo-btn').addEventListener('click', doUndo);
@@ -18,6 +19,29 @@ window.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
   if (mod && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) { e.preventDefault(); doRedo(); }
+});
+
+// ── Sculpt tool buttons ───────────────────────────────────────────────────────
+document.querySelectorAll('[data-stool]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-stool]').forEach(x => x.classList.remove('act'));
+  b.classList.add('act'); state.sculptTool = b.dataset.stool;
+  const isRound = b.dataset.stool === 'round';
+  document.getElementById('sculpt-size-row').style.display = isRound ? 'none' : '';
+  document.getElementById('sculpt-round-rows').style.display = isRound ? '' : 'none';
+}));
+
+// ── Sculpt tool sliders ───────────────────────────────────────────────────────
+document.getElementById('sculpt-size').addEventListener('input', e => {
+  state.sculptSize = parseInt(e.target.value);
+  document.getElementById('sculpt-size-val').textContent = e.target.value;
+});
+document.getElementById('round-radius').addEventListener('input', e => {
+  state.roundRadius = parseFloat(e.target.value);
+  document.getElementById('round-radius-val').textContent = e.target.value;
+});
+document.getElementById('round-strength').addEventListener('input', e => {
+  state.roundStrength = parseFloat(e.target.value);
+  document.getElementById('round-strength-val').textContent = parseFloat(e.target.value).toFixed(2);
 });
 
 // ── Mode buttons ──────────────────────────────────────────────────────────────
@@ -59,7 +83,9 @@ document.getElementById('playbtn').addEventListener('click', function () {
 // ── Output resolution buttons ─────────────────────────────────────────────────
 document.querySelectorAll('[data-outres]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-outres]').forEach(x => x.classList.remove('on'));
-  b.classList.add('on'); setOutRes(parseInt(b.dataset.outres));
+  b.classList.add('on');
+  const w = parseInt(b.dataset.outres);
+  setOutSize(w, w * 2);
 }));
 
 // ── Shading / outline / outline-color buttons ─────────────────────────────────
@@ -140,13 +166,157 @@ Object.entries(WDEFS).forEach(([k, d]) => {
 
 // ── Export buttons ────────────────────────────────────────────────────────────
 document.getElementById('expF').addEventListener('click', exportFrame);
-document.getElementById('expS').addEventListener('click', exportSpritesheet);
+document.getElementById('expS').addEventListener('click', exportStaticSheet);
+document.getElementById('expW').addEventListener('click', exportWalkSheet);
+
+// ── Body part editor ──────────────────────────────────────────────────────────
+// Maps each mesh.userData.part → which SK ancestor group to use as local space.
+const PART_ANCESTOR = {
+  head: 'head', pelvis: 'torso', torso: 'torso',
+  lUpperArm: 'lArm', lLowerArm: 'lElbow', lHand: 'lElbow',
+  lUpperLeg: 'lLeg', lLowerLeg: 'lKnee', lFoot: 'lKnee',
+};
+const PART_FILTERS = {
+  head:  p => p === 'head',
+  torso: p => p === 'torso' || p === 'pelvis',
+  arm:   p => p === 'lUpperArm' || p === 'lLowerArm' || p === 'lHand',
+  leg:   p => p === 'lUpperLeg' || p === 'lLowerLeg' || p === 'lFoot',
+};
+
+const _wp2 = new THREE.Vector3();
+
+function capturePartData(groupName) {
+  const filter = PART_FILTERS[groupName];
+  if (!filter) return null;
+  const data = [];
+  bodyV.forEach(m => {
+    if (!filter(m.userData.part)) return;
+    const ancKey = PART_ANCESTOR[m.userData.part];
+    if (!ancKey || !SK[ancKey]) return;
+    m.getWorldPosition(_wp2);
+    const lp = SK[ancKey].worldToLocal(_wp2.clone());
+    data.push({
+      x: +lp.x.toFixed(4), y: +lp.y.toFixed(4), z: +lp.z.toFixed(4),
+      color: '#' + m.material.color.getHexString(),
+      part: m.userData.part,
+      isSkin: m.userData.isSkin || false,
+      skAncestor: ancKey,
+    });
+  });
+  return data;
+}
+
+let selectedEditPart = null;
+
+function updatePartUI() {
+  document.querySelectorAll('[data-editpart]').forEach(b => {
+    const pname = b.dataset.editpart;
+    b.classList.toggle('on', pname === selectedEditPart);
+    const hasSaved = !!savedParts[pname];
+    b.title = hasSaved ? 'Custom saved' : 'Default shape';
+    b.style.borderColor = hasSaved ? '#a6e3a1' : '';
+    b.style.color = hasSaved ? '#a6e3a1' : '';
+  });
+  const hasSelection = !!selectedEditPart;
+  document.getElementById('save-part-btn').disabled = !hasSelection;
+  document.getElementById('reset-part-btn').disabled = !hasSelection || !savedParts[selectedEditPart];
+  if (selectedEditPart) {
+    const label = { head: 'Head', torso: 'Torso', arm: 'Arms', leg: 'Legs' }[selectedEditPart];
+    const status = savedParts[selectedEditPart] ? 'custom' : 'default';
+    document.getElementById('part-info').textContent = `${label} — ${status} shape selected`;
+  } else {
+    document.getElementById('part-info').textContent = 'Select a part to edit or save';
+  }
+}
+
+document.querySelectorAll('[data-editpart]').forEach(b => {
+  b.addEventListener('click', () => {
+    selectedEditPart = selectedEditPart === b.dataset.editpart ? null : b.dataset.editpart;
+    updatePartUI();
+  });
+});
+
+document.getElementById('save-part-btn').addEventListener('click', () => {
+  if (!selectedEditPart) return;
+  const data = capturePartData(selectedEditPart);
+  if (!data || !data.length) { alert('No voxels found for this part — sculpt something first!'); return; }
+  savePart(selectedEditPart, data);
+  updatePartUI();
+});
+
+document.getElementById('reset-part-btn').addEventListener('click', () => {
+  if (!selectedEditPart) return;
+  if (!confirm(`Reset ${selectedEditPart} to default procedural shape?`)) return;
+  resetPart(selectedEditPart);
+  rebuild();
+  updatePartUI();
+});
+
+updatePartUI();
 
 // ── Raycasting / painting / sculpting ─────────────────────────────────────────
 const ray = new THREE.Raycaster();
 const m2 = new THREE.Vector2();
 const c3 = document.getElementById('c3');
 let isPainting = false, isOrbiting = false, lmx = 0, lmy = 0, strokeUndoMap = null;
+let roundStroke = null; // accumulates removals per round drag stroke
+
+// Reusable vectors to avoid per-call allocation in hot path
+const _wp = new THREE.Vector3();
+const _ctr = new THREE.Vector3();
+
+// Spherical chamfer: carves away corner/edge voxels within radius R of hit.point.
+// Corner voxels (3 exposed faces) are removed up to R; edge voxels (2) up to R*0.7;
+// surface voxels (1) up to R*0.35; interior voxels never removed.
+function doRound(hit) {
+  const R = state.roundRadius;
+  const center = hit.point;
+
+  // Build world-space position map keyed on 2× coords to handle 0.5-unit offsets
+  const posMap = new Map();
+  [...bodyV, ...clothV].forEach(m => {
+    m.getWorldPosition(_wp);
+    posMap.set(`${Math.round(_wp.x * 2)},${Math.round(_wp.y * 2)},${Math.round(_wp.z * 2)}`, m);
+  });
+
+  const D6 = [[2,0,0],[-2,0,0],[0,2,0],[0,-2,0],[0,0,2],[0,0,-2]];
+  const toRemove = [];
+
+  bodyV.forEach(m => {
+    m.getWorldPosition(_wp);
+    const d = _wp.distanceTo(center);
+    if (d >= R) return;
+
+    const kx = Math.round(_wp.x * 2), ky = Math.round(_wp.y * 2), kz = Math.round(_wp.z * 2);
+    let empty = 0;
+    for (const [dx, dy, dz] of D6) {
+      if (!posMap.has(`${kx+dx},${ky+dy},${kz+dz}`)) empty++;
+    }
+
+    // Threshold: how deep the sphere carves depends on voxel convexity
+    const thresh = empty >= 3 ? R : empty >= 2 ? R * state.roundStrength : empty >= 1 ? R * state.roundStrength * 0.5 : 0;
+    if (d < thresh) toRemove.push({ mesh: m, parent: m.parent });
+  });
+
+  if (!toRemove.length) return;
+
+  toRemove.forEach(({ mesh, parent }) => {
+    parent.remove(mesh);
+    const i = bodyV.indexOf(mesh);
+    if (i !== -1) bodyV.splice(i, 1);
+  });
+
+  // Accumulate into the stroke batch if dragging; otherwise push immediately
+  if (roundStroke !== null) {
+    roundStroke.push(...toRemove);
+  } else {
+    const removed = toRemove;
+    pushUndo({
+      undo() { removed.forEach(({ mesh, parent }) => { parent.add(mesh); bodyV.push(mesh); }); },
+      redo() { removed.forEach(({ mesh, parent }) => { parent.remove(mesh); const i = bodyV.indexOf(mesh); if (i !== -1) bodyV.splice(i, 1); }); }
+    });
+  }
+}
 
 function getHit(e) {
   const r = c3.getBoundingClientRect();
@@ -162,23 +332,50 @@ function doAct(e) {
   const mesh = hit.object;
 
   if (state.mode === 'sculpt') {
-    if (isCmd) {
-      const parent = mesh.parent; if (!parent) return;
-      const oldMat = mesh.material.clone();
-      parent.remove(mesh); bodyV.splice(bodyV.indexOf(mesh), 1);
-      pushUndo({
-        undo() { mesh.material = oldMat; parent.add(mesh); bodyV.push(mesh); },
-        redo() { parent.remove(mesh); bodyV.splice(bodyV.indexOf(mesh), 1); }
+    if (isCmd || state.sculptTool === 'delete') {
+      const half = Math.floor(state.sculptSize / 2);
+      mesh.getWorldPosition(_ctr);
+      const toRemove = [];
+      bodyV.forEach(v => {
+        v.getWorldPosition(_wp);
+        if (Math.abs(_wp.x - _ctr.x) <= half * U + U * 0.1 &&
+            Math.abs(_wp.y - _ctr.y) <= half * U + U * 0.1 &&
+            Math.abs(_wp.z - _ctr.z) <= half * U + U * 0.1) {
+          toRemove.push({ mesh: v, parent: v.parent });
+        }
       });
+      if (!toRemove.length) return;
+      toRemove.forEach(({ mesh: m, parent: p }) => {
+        if (!p) return;
+        p.remove(m); const i = bodyV.indexOf(m); if (i !== -1) bodyV.splice(i, 1);
+      });
+      pushUndo({
+        undo() { toRemove.forEach(({ mesh: m, parent: p }) => { p.add(m); bodyV.push(m); }); },
+        redo() { toRemove.forEach(({ mesh: m, parent: p }) => { p.remove(m); const i = bodyV.indexOf(m); if (i !== -1) bodyV.splice(i, 1); }); }
+      });
+    } else if (state.sculptTool === 'round') {
+      doRound(hit);
     } else {
       const n = hit.face.normal.clone().transformDirection(mesh.matrixWorld).round();
-      const nm = new THREE.Mesh(BG, mat(GRAY));
-      nm.position.copy(mesh.position).addScaledVector(n, U);
-      nm.userData.part = mesh.userData.part; nm.userData.bc = GRAY;
-      mesh.parent.add(nm); bodyV.push(nm);
-      pushUndo({
-        undo() { if (nm.parent) nm.parent.remove(nm); bodyV.splice(bodyV.indexOf(nm), 1); },
-        redo() { mesh.parent.add(nm); bodyV.push(nm); }
+      const center = mesh.position.clone().addScaledVector(n, U);
+      const half = Math.floor(state.sculptSize / 2);
+      const added = [];
+      for (let di = -half; di <= half; di++) {
+        for (let dj = -half; dj <= half; dj++) {
+          for (let dk = -half; dk <= half; dk++) {
+            const pos = center.clone().add(new THREE.Vector3(di, dj, dk).multiplyScalar(U));
+            if (bodyV.some(v => v.parent === mesh.parent && v.position.distanceTo(pos) < U * 0.1)) continue;
+            const nm = new THREE.Mesh(BG, mat(GRAY));
+            nm.position.copy(pos);
+            nm.userData.part = mesh.userData.part; nm.userData.bc = GRAY;
+            mesh.parent.add(nm); bodyV.push(nm);
+            added.push({ mesh: nm, parent: mesh.parent });
+          }
+        }
+      }
+      if (added.length) pushUndo({
+        undo() { added.forEach(({ mesh: m, parent: p }) => { p.remove(m); const i = bodyV.indexOf(m); if (i !== -1) bodyV.splice(i, 1); }); },
+        redo() { added.forEach(({ mesh: m, parent: p }) => { p.add(m); bodyV.push(m); }); }
       });
     }
     return;
@@ -214,6 +411,7 @@ c3.addEventListener('mousedown', e => {
   if (e.button === 2 || e.shiftKey) { isOrbiting = true; return; }
   isPainting = true;
   if (state.mode === 'paint' || state.mode === 'cloth') { strokeUndoMap = new Map(); doAct(e); }
+  else if (state.mode === 'sculpt' && state.sculptTool === 'round') { roundStroke = []; doAct(e); }
   else doAct(e);
 });
 c3.addEventListener('mousemove', e => {
@@ -221,6 +419,7 @@ c3.addEventListener('mousemove', e => {
   lmx = e.clientX; lmy = e.clientY;
   if (isOrbiting) { state.camT -= dx * 0.007; state.camP = Math.max(-0.4, Math.min(1.2, state.camP + dy * 0.006)); syncCam(); }
   else if (isPainting && (state.mode === 'paint' || state.mode === 'cloth')) doAct(e);
+  else if (isPainting && state.mode === 'sculpt' && state.sculptTool === 'round') doAct(e);
 });
 window.addEventListener('mouseup', () => {
   if (isPainting && strokeUndoMap && strokeUndoMap.size > 0) {
@@ -231,5 +430,13 @@ window.addEventListener('mouseup', () => {
     });
     strokeUndoMap = null;
   }
+  if (roundStroke && roundStroke.length > 0) {
+    const removed = roundStroke;
+    pushUndo({
+      undo() { removed.forEach(({ mesh, parent }) => { parent.add(mesh); bodyV.push(mesh); }); },
+      redo() { removed.forEach(({ mesh, parent }) => { parent.remove(mesh); const i = bodyV.indexOf(mesh); if (i !== -1) bodyV.splice(i, 1); }); }
+    });
+  }
+  roundStroke = null;
   isPainting = false; isOrbiting = false;
 });

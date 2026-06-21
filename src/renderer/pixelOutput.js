@@ -1,40 +1,64 @@
 import * as THREE from 'three';
-import { scene, cam } from './scene.js';
+import { scene } from './scene.js';
 import { state } from '../state.js';
 import { root } from '../character/skeleton.js';
+import { OUT_W, OUT_H, ORTHO_CAM_Y, DISPLAY_SCALE } from '../constants.js';
 
 export const outC = document.getElementById('outc');
 export const outX = outC.getContext('2d');
-const out2 = document.getElementById('outc2x');
-const out2X = out2.getContext('2d');
+
+// Mutable current output dimensions — start at base 16×32
+export const outSize = { w: OUT_W, h: OUT_H };
+
+function applyCanvasSizes() {
+  const { w, h } = outSize;
+  outC.width = w; outC.height = h;
+  const dscale = Math.floor(128 / w); // keep preview ≤128px wide regardless of output res
+  outC.style.width  = (w * dscale) + 'px';
+  outC.style.height = (h * dscale) + 'px';
+  outC.style.imageRendering = 'pixelated';
+}
+applyCanvasSizes();
 
 export const offR = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
 offR.setPixelRatio(1);
+offR.setSize(OUT_W, OUT_H);
 offR.setClearColor(0x000000, 0);
 
-export function setOutRes(r) {
-  state.outRes = r;
-  outC.width = r; outC.height = r;
-  const d = Math.max(1, Math.floor(128 / r)) * r;
-  outC.style.width = d + 'px'; outC.style.height = d + 'px';
-  out2.width = r * 4; out2.height = r * 4;
-  out2.style.width = (r * 4) + 'px'; out2.style.height = (r * 4) + 'px';
+// Switch output resolution — keeps same world-space scene, more/fewer pixels per voxel
+export function setOutSize(w, h) {
+  outSize.w = w; outSize.h = h;
+  offR.setSize(w, h);
+  applyCanvasSizes();
 }
-setOutRes(32);
+
+const exportCam = new THREE.OrthographicCamera(
+  -OUT_W / 2, OUT_W / 2, OUT_H / 2, -OUT_H / 2, -500, 500
+);
+
+function setExportCamAngle(theta, phi = 0.15) {
+  const dist = OUT_H * 1.2;
+  exportCam.position.set(
+    dist * Math.sin(theta) * Math.cos(phi),
+    ORTHO_CAM_Y + dist * Math.sin(phi),
+    dist * Math.cos(theta) * Math.cos(phi)
+  );
+  exportCam.lookAt(0, ORTHO_CAM_Y, 0);
+  exportCam.updateProjectionMatrix();
+}
 
 function rgbDist(a, b) {
   return Math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2);
 }
 
 function buildPalette(pixels) {
-  const max = state.outRes <= 16 ? 16 : state.outRes <= 32 ? 32 : 64;
   const cm = new Map();
   for (let i = 0; i < pixels.length; i += 4) {
     if (pixels[i+3] < 128) continue;
     const key = (pixels[i] >> 3) << 10 | (pixels[i+1] >> 3) << 5 | (pixels[i+2] >> 3);
     if (!cm.has(key)) cm.set(key, [pixels[i], pixels[i+1], pixels[i+2]]);
   }
-  return [...cm.values()].slice(0, max);
+  return [...cm.values()].slice(0, 32);
 }
 
 function quantize(r, g, b, pal) {
@@ -66,6 +90,15 @@ function applyShading(px, W, H) {
   }
 }
 
+function applyQuantize(px, W, H) {
+  const pal = buildPalette(px);
+  for (let i = 0; i < W * H * 4; i += 4) {
+    if (px[i+3] < 128) { px[i]=px[i+1]=px[i+2]=px[i+3]=0; continue; }
+    const q = quantize(px[i], px[i+1], px[i+2], pal);
+    px[i]=q[0]; px[i+1]=q[1]; px[i+2]=q[2]; px[i+3]=255;
+  }
+}
+
 function applyOutline(px, W, H) {
   const orig = new Uint8ClampedArray(px);
   const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
@@ -88,106 +121,36 @@ function applyOutline(px, W, H) {
   }
 }
 
-// Coverage-based downsampler: render at SCALE× then majority-vote each block.
-// This avoids the bilinear blur you get from naively downscaling an anti-aliased 3D render.
-export function renderPixelArt(destCtx, res) {
-  const SCALE = res <= 32 ? 24 : 12;
-  const inter = res * SCALE;
+// Render one frame to destCtx at (destX, destY) using the given camera angle.
+// Snaps root bob to zero so pixel output is always from the base pose.
+export function renderPixelArt(theta, phi, destCtx, destX = 0, destY = 0) {
+  const W = outSize.w, H = outSize.h;
+  setExportCamAngle(theta, phi);
 
-  // Snap root translation/tilt to zero before capturing so walk/run bob doesn't
-  // shift boundary pixels between pixel-output frames (restores after render).
   const savedY = root.position.y;
   const savedRX = root.rotation.x;
   root.position.y = 0;
   root.rotation.x = 0;
 
-  offR.setSize(inter, inter);
-  const oc = new THREE.PerspectiveCamera(36, 1, 0.1, 600);
-  oc.position.copy(cam.position); oc.quaternion.copy(cam.quaternion);
-  offR.render(scene, oc);
+  offR.render(scene, exportCam);
 
   root.position.y = savedY;
   root.rotation.x = savedRX;
 
-  // Copy WebGL pixels into a readable 2D canvas
   const tmp = document.createElement('canvas');
-  tmp.width = inter; tmp.height = inter;
+  tmp.width = W; tmp.height = H;
   const tctx = tmp.getContext('2d');
   tctx.drawImage(offR.domElement, 0, 0);
-  const hi = tctx.getImageData(0, 0, inter, inter).data;
+  const id = tctx.getImageData(0, 0, W, H);
 
-  const outId = new ImageData(res, res);
-  const px = outId.data;
-  const S2 = SCALE * SCALE;
-  const THRESHOLD = S2 * 0.20; // ≥20% coverage → foreground pixel
+  applyShading(id.data, W, H);
+  applyQuantize(id.data, W, H);
+  applyOutline(id.data, W, H);
 
-  for (let y = 0; y < res; y++) {
-    for (let x = 0; x < res; x++) {
-      const colorMap = new Map();
-      let opaqueCount = 0;
-
-      for (let dy = 0; dy < SCALE; dy++) {
-        for (let dx = 0; dx < SCALE; dx++) {
-          const si = ((y * SCALE + dy) * inter + (x * SCALE + dx)) * 4;
-          if (hi[si+3] < 128) continue;
-          opaqueCount++;
-          // 15-bit integer key (5 bits per channel) for fast bucketing
-          const key = (hi[si] >> 3) << 10 | (hi[si+1] >> 3) << 5 | (hi[si+2] >> 3);
-          const prev = colorMap.get(key);
-          if (prev) { prev.n++; prev.r += hi[si]; prev.g += hi[si+1]; prev.b += hi[si+2]; }
-          else colorMap.set(key, { n: 1, r: hi[si], g: hi[si+1], b: hi[si+2] });
-        }
-      }
-
-      const i = (y * res + x) * 4;
-      if (opaqueCount < THRESHOLD) { px[i+3] = 0; continue; }
-
-      // Dominant color bucket → average its exact values for better color fidelity
-      let best = null, bestN = 0;
-      for (const v of colorMap.values()) { if (v.n > bestN) { bestN = v.n; best = v; } }
-      px[i]   = Math.round(best.r / best.n);
-      px[i+1] = Math.round(best.g / best.n);
-      px[i+2] = Math.round(best.b / best.n);
-      px[i+3] = 255;
-    }
-  }
-
-  // Silhouette smoothing: fill isolated transparent holes (3+ opaque orthogonal neighbors).
-  // Prevents single-pixel gaps caused by boundary pixels hovering near the coverage threshold
-  // during sub-pixel vertical translation in walk/run animations.
-  {
-    const copy = new Uint8ClampedArray(px);
-    const dirs4 = [[0,-1],[0,1],[-1,0],[1,0]];
-    for (let y = 1; y < res-1; y++) for (let x = 1; x < res-1; x++) {
-      const i = (y*res+x)*4;
-      if (copy[i+3] >= 128) continue;
-      let opaqueN = 0, sr = 0, sg = 0, sb = 0;
-      for (const [dx,dy] of dirs4) {
-        const ni = ((y+dy)*res+(x+dx))*4;
-        if (copy[ni+3] >= 128) { opaqueN++; sr += copy[ni]; sg += copy[ni+1]; sb += copy[ni+2]; }
-      }
-      if (opaqueN >= 3) {
-        px[i] = sr/opaqueN; px[i+1] = sg/opaqueN; px[i+2] = sb/opaqueN; px[i+3] = 255;
-      }
-    }
-  }
-
-  if (state.shadeMode !== 'flat') applyShading(px, res, res);
-  const pal = buildPalette(px);
-  for (let i = 0; i < px.length; i += 4) {
-    if (px[i+3] < 128) { px[i]=px[i+1]=px[i+2]=px[i+3]=0; continue; }
-    const q = quantize(px[i], px[i+1], px[i+2], pal);
-    px[i]=q[0]; px[i+1]=q[1]; px[i+2]=q[2]; px[i+3]=255;
-  }
-  if (state.outlineMode !== 'none') applyOutline(px, res, res);
-
-  destCtx.clearRect(0, 0, res, res);
-  destCtx.putImageData(outId, 0, 0);
+  tctx.putImageData(id, 0, 0);
+  destCtx.drawImage(tmp, destX, destY, W, H);
 }
 
 export function renderOutputs() {
-  renderPixelArt(outX, state.outRes);
-  out2X.imageSmoothingEnabled = false;
-  out2X.clearRect(0, 0, state.outRes * 4, state.outRes * 4);
-  out2X.drawImage(outC, 0, 0, state.outRes * 4, state.outRes * 4);
+  renderPixelArt(state.camT, state.camP, outX);
 }

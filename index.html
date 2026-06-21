@@ -7,7 +7,7 @@
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{width:100%;height:100%;overflow:hidden;background:#1e1e2e;font-family:system-ui,sans-serif;color:#cdd6f4;font-size:11px}
-    #app{display:grid;grid-template-columns:175px 1fr 175px;gap:7px;padding:7px;height:100vh}
+    #app{display:grid;grid-template-columns:175px 1fr 150px 175px;gap:7px;padding:7px;height:100vh}
     .col{display:flex;flex-direction:column;gap:6px;overflow:hidden}
     .card{background:#181825;border:0.5px solid #313244;border-radius:8px;padding:8px}
     .lbl{font-size:10px;color:#6c7086;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
@@ -53,8 +53,7 @@
     .seg{display:flex;gap:2px}
     .seg-btn{padding:3px 7px;font-size:10px}
     .out-preview{display:flex;gap:12px;align-items:flex-end;justify-content:center;padding:4px 0}
-    #outc,#outc2x{image-rendering:pixelated;border:0.5px solid #45475a;border-radius:3px}
-    .out-lbl{font-size:9px;color:#6c7086;text-align:center;margin-top:3px}
+    #outc{image-rendering:pixelated;border:0.5px solid #45475a;border-radius:3px}
     .out-canvas-wrap{display:flex;flex-direction:column;align-items:center}
   </style>
 </head>
@@ -87,10 +86,34 @@
           <button class="btn tbtn" data-tool="pick">🔍 Pick color</button>
         </div>
       </div>
-      <div id="sp" style="display:none;font-size:10px;color:#6c7086;line-height:1.9;padding:4px 0">
-        <b style="color:#cdd6f4">Click</b> — add voxel<br>
-        <b style="color:#cdd6f4">⌘/Ctrl+click</b> — delete<br>
-        <b style="color:#cdd6f4">Shift+drag</b> — orbit
+      <div id="sp" style="display:none">
+        <div style="margin-bottom:5px">
+          <button class="btn tbtn act" data-stool="add">＋ Add</button>
+          <button class="btn tbtn" data-stool="delete">✕ Delete</button>
+          <button class="btn tbtn" data-stool="round">⊙ Round</button>
+        </div>
+        <div id="sculpt-size-row" class="srow">
+          <label>Size</label>
+          <input type="range" id="sculpt-size" min="1" max="5" step="1" value="1">
+          <span id="sculpt-size-val" style="width:18px;text-align:right;color:#89b4fa;font-size:10px">1</span>
+        </div>
+        <div id="sculpt-round-rows" style="display:none">
+          <div class="srow">
+            <label>Radius</label>
+            <input type="range" id="round-radius" min="1" max="6" step="0.5" value="3">
+            <span id="round-radius-val" style="width:24px;text-align:right;color:#89b4fa;font-size:10px">3</span>
+          </div>
+          <div class="srow">
+            <label>Strength</label>
+            <input type="range" id="round-strength" min="0.2" max="1.0" step="0.05" value="0.7">
+            <span id="round-strength-val" style="width:28px;text-align:right;color:#89b4fa;font-size:10px">0.7</span>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#6c7086;line-height:1.9;padding:2px 0">
+          <b style="color:#cdd6f4">Drag</b> — sculpt<br>
+          <b style="color:#cdd6f4">⌘+click</b> — quick delete<br>
+          <b style="color:#cdd6f4">Shift+drag</b> — orbit
+        </div>
       </div>
       <div id="cp" style="display:none;font-size:10px;color:#6c7086;padding:4px 0">Equip a piece then paint it.</div>
     </div>
@@ -111,45 +134,55 @@
   <!-- CENTER -->
   <div class="col">
     <div id="vc"><canvas id="c3"></canvas><span class="hint">Paint: drag · Orbit: shift/right drag · Sculpt delete: ⌘+click</span></div>
-    <div id="out-section">
-      <div class="out-controls">
-        <div class="out-group">
-          <div class="out-group-lbl">Resolution</div>
-          <div class="seg">
-            <button class="btn seg-btn" data-outres="16">8-bit</button>
-            <button class="btn seg-btn on" data-outres="32">16-bit</button>
-            <button class="btn seg-btn" data-outres="64">32-bit</button>
-          </div>
-        </div>
-        <div class="out-group">
-          <div class="out-group-lbl">Shading</div>
-          <div class="seg">
-            <button class="btn seg-btn" data-shade="flat">Flat</button>
-            <button class="btn seg-btn on" data-shade="2tone">2-tone</button>
-            <button class="btn seg-btn" data-shade="3tone">3-tone</button>
-          </div>
-        </div>
-        <div class="out-group">
-          <div class="out-group-lbl">Outline</div>
-          <div class="seg">
-            <button class="btn seg-btn" data-outline="none">None</button>
-            <button class="btn seg-btn on" data-outline="silhouette">Silhouette</button>
-            <button class="btn seg-btn" data-outline="full">Full</button>
-          </div>
-        </div>
-        <div class="out-group">
-          <div class="out-group-lbl">Outline color</div>
-          <div class="seg">
-            <button class="btn seg-btn on" data-ocol="black">Black</button>
-            <button class="btn seg-btn" data-ocol="dark">Dark</button>
-            <button class="btn seg-btn" data-ocol="match">Match</button>
-          </div>
+  </div>
+
+  <!-- PREVIEW COLUMN -->
+  <div class="col">
+    <div class="card" style="display:flex;flex-direction:column;gap:4px">
+      <div class="lbl">Preview</div>
+      <div style="display:flex;justify-content:center;margin-bottom:2px"><canvas id="outc"></canvas></div>
+      <div>
+        <div class="out-group-lbl">Resolution</div>
+        <div class="seg" style="width:100%">
+          <button class="btn seg-btn on" data-outres="16" style="flex:1;padding:3px 2px">8</button>
+          <button class="btn seg-btn" data-outres="32" style="flex:1;padding:3px 2px">16</button>
+          <button class="btn seg-btn" data-outres="64" style="flex:1;padding:3px 2px">32</button>
         </div>
       </div>
-      <div class="out-preview">
-        <div class="out-canvas-wrap"><canvas id="outc"></canvas><div class="out-lbl">Pixel output</div></div>
-        <div class="out-canvas-wrap"><canvas id="outc2x"></canvas><div class="out-lbl">4× zoom</div></div>
+      <div>
+        <div class="out-group-lbl">Shading</div>
+        <div class="seg" style="width:100%">
+          <button class="btn seg-btn" data-shade="flat" style="flex:1;padding:3px 2px">Flat</button>
+          <button class="btn seg-btn on" data-shade="2tone" style="flex:1;padding:3px 2px">2T</button>
+          <button class="btn seg-btn" data-shade="3tone" style="flex:1;padding:3px 2px">3T</button>
+        </div>
       </div>
+      <div>
+        <div class="out-group-lbl">Outline</div>
+        <div class="seg" style="width:100%">
+          <button class="btn seg-btn" data-outline="none" style="flex:1;padding:3px 2px">Off</button>
+          <button class="btn seg-btn on" data-outline="silhouette" style="flex:1;padding:3px 2px">Sil</button>
+          <button class="btn seg-btn" data-outline="full" style="flex:1;padding:3px 2px">Full</button>
+        </div>
+      </div>
+      <div>
+        <div class="out-group-lbl">Outline color</div>
+        <div class="seg" style="width:100%">
+          <button class="btn seg-btn on" data-ocol="black" style="flex:1;padding:3px 2px">Blk</button>
+          <button class="btn seg-btn" data-ocol="dark" style="flex:1;padding:3px 2px">Drk</button>
+          <button class="btn seg-btn" data-ocol="match" style="flex:1;padding:3px 2px">Mtch</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">Animation</div>
+      <div class="seg" style="width:100%;margin-bottom:4px">
+        <button class="btn seg-btn act" data-anim="idle" style="flex:1;padding:3px 2px">Idle</button>
+        <button class="btn seg-btn" data-anim="walk" style="flex:1;padding:3px 2px">Walk</button>
+        <button class="btn seg-btn" data-anim="run" style="flex:1;padding:3px 2px">Run</button>
+        <button class="btn seg-btn" data-anim="sit" style="flex:1;padding:3px 2px">Sit</button>
+      </div>
+      <button id="playbtn" class="btn" style="width:100%;padding:5px">▶ Play</button>
     </div>
   </div>
 
@@ -182,17 +215,24 @@
       <div class="lbl">Wardrobe</div><div class="wgrid" id="wgrid"></div>
     </div>
     <div class="card">
-      <div class="lbl">Animation</div>
-      <button class="btn tbtn act" data-anim="idle">Idle</button>
-      <button class="btn tbtn" data-anim="walk">Walk</button>
-      <button class="btn tbtn" data-anim="run">Run</button>
-      <button class="btn tbtn" data-anim="sit">Sit</button>
-      <button id="playbtn" class="btn" style="width:100%;padding:5px;margin-top:4px">▶ Play</button>
+      <div class="lbl">Body Parts</div>
+      <div class="wgrid" style="gap:3px;margin-bottom:6px">
+        <button class="btn wbtn" data-editpart="head">Head</button>
+        <button class="btn wbtn" data-editpart="torso">Torso</button>
+        <button class="btn wbtn" data-editpart="arm">Arms</button>
+        <button class="btn wbtn" data-editpart="leg">Legs</button>
+      </div>
+      <div id="part-info" style="font-size:10px;color:#6c7086;margin-bottom:6px;min-height:14px">Select a part to edit or save</div>
+      <div style="display:flex;gap:4px">
+        <button class="btn" id="save-part-btn" style="flex:1;padding:5px" disabled>Save shape</button>
+        <button class="btn" id="reset-part-btn" style="flex:1;padding:5px" disabled>Reset</button>
+      </div>
     </div>
     <div class="card">
       <div class="lbl">Export</div>
       <button class="btn tbtn" id="expF">📷 This frame</button>
-      <button class="btn tbtn" id="expS">🗂 All 8 dirs</button>
+      <button class="btn tbtn" id="expS">🗂 8 dirs (static)</button>
+      <button class="btn tbtn" id="expW">🏃 Walk (512×32)</button>
     </div>
   </div>
 </div>
