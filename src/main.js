@@ -4,7 +4,7 @@ import { renderer, cam, scene } from './renderer/scene.js';
 import { renderOutputs } from './renderer/pixelOutput.js';
 import { state } from './state.js';
 import './ui/controls.js';
-import { updateSkeleton } from './ui/poseEditor.js';
+import { updateSkeleton, captureDefaults } from './ui/poseEditor.js';
 
 let frameCount = 0;
 function loop() {
@@ -17,4 +17,6 @@ function loop() {
 }
 
 rebuild();
+resetPose(SK, root);
+captureDefaults();
 loop();

@@ -1,21 +1,20 @@
 import * as THREE from 'three';
 import { SK, root } from '../character/skeleton.js';
 import { scene, cam } from '../renderer/scene.js';
-import { resetPose as _resetPose } from '../animation/poses.js';
 import { pushUndo } from './undo.js';
 
 // ── Skeleton definition ───────────────────────────────────────────────────────
 const JOINT_DEFS = [
-  { id: 'head',      getG: () => SK.head    },
-  { id: 'torso',     getG: () => SK.torso   },
-  { id: 'lShoulder', getG: () => SK.lArm    },
-  { id: 'lElbow',    getG: () => SK.lElbow  },
-  { id: 'rShoulder', getG: () => SK.rArm    },
-  { id: 'rElbow',    getG: () => SK.rElbow  },
-  { id: 'lHip',      getG: () => SK.lLeg    },
-  { id: 'lKnee',     getG: () => SK.lKnee   },
-  { id: 'rHip',      getG: () => SK.rLeg    },
-  { id: 'rKnee',     getG: () => SK.rKnee   },
+  { id: 'head',      label: 'Head',       getG: () => SK.head    },
+  { id: 'torso',     label: 'Torso',      getG: () => SK.torso   },
+  { id: 'lShoulder', label: 'L Shoulder', getG: () => SK.lArm    },
+  { id: 'lElbow',    label: 'L Elbow',    getG: () => SK.lElbow  },
+  { id: 'rShoulder', label: 'R Shoulder', getG: () => SK.rArm    },
+  { id: 'rElbow',    label: 'R Elbow',    getG: () => SK.rElbow  },
+  { id: 'lHip',      label: 'L Hip',      getG: () => SK.lLeg    },
+  { id: 'lKnee',     label: 'L Knee',     getG: () => SK.lKnee   },
+  { id: 'rHip',      label: 'R Hip',      getG: () => SK.rLeg    },
+  { id: 'rKnee',     label: 'R Knee',     getG: () => SK.rKnee   },
 ];
 
 const BONE_PAIRS = [
@@ -28,6 +27,8 @@ const BONE_PAIRS = [
   ['rShoulder', 'rElbow'],
   ['lHip',      'lKnee'],
   ['rHip',      'rKnee'],
+  ['lShoulder', 'head'],   // ← new clavicle lines
+  ['rShoulder', 'head'],   // ← new
 ];
 
 // ── Scene objects ─────────────────────────────────────────────────────────────
@@ -59,6 +60,18 @@ boneLines.renderOrder = 998;
 boneLines.visible = false;
 boneLines.frustumCulled = false;
 scene.add(boneLines);
+
+const _defaultPos = {};  // id → THREE.Vector3
+const _defaultRot = {};  // id → THREE.Euler
+
+export function captureDefaults() {
+  JOINT_DEFS.forEach(({ id, getG }) => {
+    const g = getG();
+    if (!g) return;
+    _defaultPos[id] = g.position.clone();
+    _defaultRot[id] = g.rotation.clone();
+  });
+}
 
 // ── Module state ──────────────────────────────────────────────────────────────
 let _skelVis    = false;  // bone lines visible (user toggle, persists across modes)
@@ -175,7 +188,7 @@ export function posePointerMove(e) {
   const parentQ = new THREE.Quaternion();
   group.parent.getWorldQuaternion(parentQ);
   group.quaternion.premultiply(worldQ.premultiply(parentQ.invert()));
-
+  group.rotation.setFromQuaternion(group.quaternion);  // ← add this line
   updateSkeleton();
 }
 
@@ -200,17 +213,44 @@ export function isPoseDragging() { return !!_dragId; }
 
 // ── Reset pose ────────────────────────────────────────────────────────────────
 export function resetSkeletonPose() {
-  const snap = {};
-  JOINT_DEFS.forEach(({ id, getG }) => { const g = getG(); if (g) snap[id] = g.rotation.clone(); });
+  const snapPos = {}, snapRot = {};
+  JOINT_DEFS.forEach(({ id, getG }) => {
+    const g = getG();
+    if (g) { snapPos[id] = g.position.clone(); snapRot[id] = g.rotation.clone(); }
+  });
+  const snapRootY = root.position.y, snapRootRX = root.rotation.x;
 
-  _resetPose(SK, root);
+  JOINT_DEFS.forEach(({ id, getG }) => {
+    const g = getG();
+    if (!g) return;
+    if (_defaultPos[id]) g.position.copy(_defaultPos[id]);
+    if (_defaultRot[id]) g.rotation.copy(_defaultRot[id]);
+  });
+  root.position.y = 0; root.rotation.x = 0;
   updateSkeleton();
 
-  const newRots = {};
-  JOINT_DEFS.forEach(({ id, getG }) => { const g = getG(); if (g) newRots[id] = g.rotation.clone(); });
+  const newPos = {}, newRot = {};
+  JOINT_DEFS.forEach(({ id, getG }) => {
+    const g = getG();
+    if (g) { newPos[id] = g.position.clone(); newRot[id] = g.rotation.clone(); }
+  });
 
   pushUndo({
-    undo() { JOINT_DEFS.forEach(({ id, getG }) => { const g = getG(); if (g && snap[id]) g.rotation.copy(snap[id]); }); },
-    redo() { JOINT_DEFS.forEach(({ id, getG }) => { const g = getG(); if (g && newRots[id]) g.rotation.copy(newRots[id]); }); }
+    undo() {
+      JOINT_DEFS.forEach(({ id, getG }) => {
+        const g = getG(); if (!g) return;
+        if (snapPos[id]) g.position.copy(snapPos[id]);
+        if (snapRot[id]) g.rotation.copy(snapRot[id]);
+      });
+      root.position.y = snapRootY; root.rotation.x = snapRootRX;
+    },
+    redo() {
+      JOINT_DEFS.forEach(({ id, getG }) => {
+        const g = getG(); if (!g) return;
+        if (newPos[id]) g.position.copy(newPos[id]);
+        if (newRot[id]) g.rotation.copy(newRot[id]);
+      });
+      root.position.y = 0; root.rotation.x = 0;
+    }
   });
 }
