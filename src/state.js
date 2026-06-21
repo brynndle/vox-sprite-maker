@@ -1,0 +1,26 @@
+export const PAL = ['#1a1a1a','#3d405b','#606c88','#9a8c98','#e63946','#f4a261','#e9c46a','#2a9d8f','#4a90d9','#9b59b6','#52b788','#48cae4','#f1faee','#ffffff','#5c3317','#a0522d','#ff6b6b','#ffd166','#06d6a0','#c77dff'];
+
+export const state = {
+  col: '#4a90d9',
+  skin: '#e8c49a',
+  hairCol: '#2c1810',
+  featCol: '#1a1a1a',
+  tool: 'paint',
+  mode: 'paint',
+  anim: 'idle',
+  playing: false,
+  tick: 0,
+  camT: 0.4,
+  camP: 0.18,
+  outRes: 32,
+  shadeMode: '2tone',
+  outlineMode: 'silhouette',
+  outlineCol: 'black',
+  activeEyes: 'dot',
+  activeBrows: 'none',
+  activeMouth: 'smile',
+  activeNose: 'none',
+  activeHair: 'none',
+  equipped: {},
+  S: { hW:1, hH:1, tW:1, tH:1, aW:1, aL:1, lW:1, lL:1, fS:1 },
+};

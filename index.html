@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voxel Sprite Maker</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;height:100%;overflow:hidden;background:#1e1e2e;font-family:system-ui,sans-serif;color:#cdd6f4;font-size:11px}
+    #app{display:grid;grid-template-columns:175px 1fr 175px;gap:7px;padding:7px;height:100vh}
+    .col{display:flex;flex-direction:column;gap:6px;overflow:hidden}
+    .card{background:#181825;border:0.5px solid #313244;border-radius:8px;padding:8px}
+    .lbl{font-size:10px;color:#6c7086;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+    #vc{background:#11111b;border-radius:8px;border:0.5px solid #313244;overflow:hidden;flex:1;width:100%;position:relative;cursor:crosshair}
+    #c3{display:block;width:100%;height:100%}
+    .btn{cursor:pointer;border-radius:4px;border:0.5px solid #45475a;background:transparent;color:#cdd6f4;font-family:system-ui,sans-serif;font-size:11px}
+    .btn.on{background:#1e3a5f;color:#89b4fa;border-color:#89b4fa}
+    .btn.act{background:#2a2a3e;border-color:#6c7086}
+    .btn:disabled{opacity:0.35;cursor:not-allowed}
+    .tbtn{width:100%;padding:4px 7px;text-align:left;display:flex;align-items:center;gap:5px;margin-bottom:3px}
+    .sw-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:5px}
+    .sw{width:18px;height:18px;border-radius:3px;border:2px solid transparent;cursor:pointer}
+    .sw:hover{transform:scale(1.15)}
+    .sw.sel{border-color:#cdd6f4}
+    #cc{width:100%;height:22px;border-radius:3px;border:0.5px solid #45475a;cursor:pointer;padding:1px;background:transparent}
+    .dir-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+    .dbtn{padding:4px 2px;text-align:center;font-size:10px}
+    .srow{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+    .srow label{width:54px;color:#6c7086;font-size:10px;flex-shrink:0}
+    .srow input[type=range]{flex:1;accent-color:#89b4fa}
+    .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+    .wbtn{padding:4px 3px;text-align:center;font-size:10px;display:flex;flex-direction:column;align-items:center;gap:1px}
+    .wbtn.eq{background:#1e3d2a;color:#a6e3a1;border-color:#a6e3a1}
+    .hint{position:absolute;bottom:4px;left:6px;font-size:9px;color:#45475a;pointer-events:none;line-height:1.5}
+    .mrow{display:flex;gap:3px;margin-bottom:6px}
+    .mbtn{flex:1;padding:4px;text-align:center}
+    .preset-row{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px}
+    .pbtn{padding:3px 6px;font-size:10px}
+    .pbtn.sel{background:#1e3a5f;color:#89b4fa;border-color:#89b4fa}
+    .cprow{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+    .cprow label{font-size:10px;color:#6c7086;width:42px}
+    .cprow input[type=color]{width:26px;height:26px;border-radius:3px;border:0.5px solid #45475a;cursor:pointer;padding:1px;background:transparent}
+    #undo-row{display:flex;gap:4px;margin-bottom:5px}
+    #undo-btn,#redo-btn{flex:1;padding:4px 6px;font-size:11px}
+    #undo-count{font-size:9px;color:#6c7086;text-align:right;margin-bottom:4px;min-height:12px}
+    .right-col{overflow-y:auto}
+    .right-col::-webkit-scrollbar{width:4px}
+    .right-col::-webkit-scrollbar-thumb{background:#313244;border-radius:2px}
+    #out-section{background:#181825;border:0.5px solid #313244;border-radius:8px;padding:8px}
+    .out-controls{display:flex;gap:6px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap}
+    .out-group{display:flex;flex-direction:column;gap:3px}
+    .out-group-lbl{font-size:9px;color:#6c7086;text-transform:uppercase;letter-spacing:.05em}
+    .seg{display:flex;gap:2px}
+    .seg-btn{padding:3px 7px;font-size:10px}
+    .out-preview{display:flex;gap:12px;align-items:flex-end;justify-content:center;padding:4px 0}
+    #outc,#outc2x{image-rendering:pixelated;border:0.5px solid #45475a;border-radius:3px}
+    .out-lbl{font-size:9px;color:#6c7086;text-align:center;margin-top:3px}
+    .out-canvas-wrap{display:flex;flex-direction:column;align-items:center}
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- LEFT PANEL -->
+  <div class="col">
+    <div class="card">
+      <div class="lbl">Mode</div>
+      <div class="mrow">
+        <button class="btn mbtn on" data-mode="paint">Paint</button>
+        <button class="btn mbtn" data-mode="sculpt">Sculpt</button>
+        <button class="btn mbtn" data-mode="cloth">Cloth</button>
+      </div>
+      <div id="undo-row">
+        <button class="btn" id="undo-btn" disabled>↩ Undo</button>
+        <button class="btn" id="redo-btn" disabled>↪ Redo</button>
+      </div>
+      <div id="undo-count"></div>
+      <div id="pp">
+        <div class="cprow"><label>Skin</label><input type="color" id="skinc" value="#e8c49a"></div>
+        <div class="cprow"><label>Hair</label><input type="color" id="hairc" value="#2c1810"></div>
+        <div class="cprow"><label>Feature</label><input type="color" id="featc" value="#1a1a1a"></div>
+        <div class="lbl" style="margin-top:4px">Paint color</div>
+        <div class="sw-grid" id="swatches"></div>
+        <input type="color" id="cc" value="#4a90d9">
+        <div style="margin-top:6px">
+          <button class="btn tbtn act" data-tool="paint">✏ Paint</button>
+          <button class="btn tbtn" data-tool="fill">🪣 Fill part</button>
+          <button class="btn tbtn" data-tool="pick">🔍 Pick color</button>
+        </div>
+      </div>
+      <div id="sp" style="display:none;font-size:10px;color:#6c7086;line-height:1.9;padding:4px 0">
+        <b style="color:#cdd6f4">Click</b> — add voxel<br>
+        <b style="color:#cdd6f4">⌘/Ctrl+click</b> — delete<br>
+        <b style="color:#cdd6f4">Shift+drag</b> — orbit
+      </div>
+      <div id="cp" style="display:none;font-size:10px;color:#6c7086;padding:4px 0">Equip a piece then paint it.</div>
+    </div>
+    <div class="card" style="flex:1;overflow-y:auto">
+      <div class="lbl">Body shape</div>
+      <div class="srow"><label>Head W</label><input type="range" min="0.6" max="1.6" step="0.05" value="1" data-s="hW"></div>
+      <div class="srow"><label>Head H</label><input type="range" min="0.6" max="1.6" step="0.05" value="1" data-s="hH"></div>
+      <div class="srow"><label>Torso W</label><input type="range" min="0.6" max="1.6" step="0.05" value="1" data-s="tW"></div>
+      <div class="srow"><label>Torso H</label><input type="range" min="0.5" max="1.6" step="0.05" value="1" data-s="tH"></div>
+      <div class="srow"><label>Arm W</label><input type="range" min="0.4" max="1.8" step="0.05" value="1" data-s="aW"></div>
+      <div class="srow"><label>Arm len</label><input type="range" min="0.5" max="1.6" step="0.05" value="1" data-s="aL"></div>
+      <div class="srow"><label>Leg W</label><input type="range" min="0.4" max="1.8" step="0.05" value="1" data-s="lW"></div>
+      <div class="srow"><label>Leg len</label><input type="range" min="0.5" max="1.8" step="0.05" value="1" data-s="lL"></div>
+      <div class="srow"><label>Foot size</label><input type="range" min="0.5" max="1.8" step="0.05" value="1" data-s="fS"></div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="col">
+    <div id="vc"><canvas id="c3"></canvas><span class="hint">Paint: drag · Orbit: shift/right drag · Sculpt delete: ⌘+click</span></div>
+    <div id="out-section">
+      <div class="out-controls">
+        <div class="out-group">
+          <div class="out-group-lbl">Resolution</div>
+          <div class="seg">
+            <button class="btn seg-btn" data-outres="16">8-bit</button>
+            <button class="btn seg-btn on" data-outres="32">16-bit</button>
+            <button class="btn seg-btn" data-outres="64">32-bit</button>
+          </div>
+        </div>
+        <div class="out-group">
+          <div class="out-group-lbl">Shading</div>
+          <div class="seg">
+            <button class="btn seg-btn" data-shade="flat">Flat</button>
+            <button class="btn seg-btn on" data-shade="2tone">2-tone</button>
+            <button class="btn seg-btn" data-shade="3tone">3-tone</button>
+          </div>
+        </div>
+        <div class="out-group">
+          <div class="out-group-lbl">Outline</div>
+          <div class="seg">
+            <button class="btn seg-btn" data-outline="none">None</button>
+            <button class="btn seg-btn on" data-outline="silhouette">Silhouette</button>
+            <button class="btn seg-btn" data-outline="full">Full</button>
+          </div>
+        </div>
+        <div class="out-group">
+          <div class="out-group-lbl">Outline color</div>
+          <div class="seg">
+            <button class="btn seg-btn on" data-ocol="black">Black</button>
+            <button class="btn seg-btn" data-ocol="dark">Dark</button>
+            <button class="btn seg-btn" data-ocol="match">Match</button>
+          </div>
+        </div>
+      </div>
+      <div class="out-preview">
+        <div class="out-canvas-wrap"><canvas id="outc"></canvas><div class="out-lbl">Pixel output</div></div>
+        <div class="out-canvas-wrap"><canvas id="outc2x"></canvas><div class="out-lbl">4× zoom</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="col right-col">
+    <div class="card">
+      <div class="lbl">Direction</div>
+      <div class="dir-grid">
+        <button class="btn dbtn" data-a="2.36">↖BL</button>
+        <button class="btn dbtn" data-a="3.14">↑Back</button>
+        <button class="btn dbtn" data-a="-2.36">↗BR</button>
+        <button class="btn dbtn" data-a="1.57">←L</button>
+        <button class="btn dbtn on" data-a="0.01">●Fwd</button>
+        <button class="btn dbtn" data-a="-1.57">→R</button>
+        <button class="btn dbtn" data-a="0.79">↙FL</button>
+        <button class="btn dbtn" data-a="0.0">↓Fwd</button>
+        <button class="btn dbtn" data-a="-0.79">↘FR</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">Eyes</div><div class="preset-row" id="eye-presets"></div>
+      <div class="lbl">Brows</div><div class="preset-row" id="brow-presets"></div>
+      <div class="lbl">Mouth</div><div class="preset-row" id="mouth-presets"></div>
+      <div class="lbl">Nose</div><div class="preset-row" id="nose-presets"></div>
+    </div>
+    <div class="card">
+      <div class="lbl">Hair</div><div class="preset-row" id="hair-presets"></div>
+    </div>
+    <div class="card">
+      <div class="lbl">Wardrobe</div><div class="wgrid" id="wgrid"></div>
+    </div>
+    <div class="card">
+      <div class="lbl">Animation</div>
+      <button class="btn tbtn act" data-anim="idle">Idle</button>
+      <button class="btn tbtn" data-anim="walk">Walk</button>
+      <button class="btn tbtn" data-anim="run">Run</button>
+      <button class="btn tbtn" data-anim="sit">Sit</button>
+      <button id="playbtn" class="btn" style="width:100%;padding:5px;margin-top:4px">▶ Play</button>
+    </div>
+    <div class="card">
+      <div class="lbl">Export</div>
+      <button class="btn tbtn" id="expF">📷 This frame</button>
+      <button class="btn tbtn" id="expS">🗂 All 8 dirs</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
