@@ -1,10 +1,10 @@
-export const OUT_W = 16;
+export const OUT_W = 25;
 export const OUT_H = 32;
 export const CHAR_PX_HEIGHT = 28;
 export const VOXEL_SIZE = OUT_H / CHAR_PX_HEIGHT; // ≈ 1.143 world units per voxel
 export const VOXEL_GAP = 0.88;
 export const DISPLAY_SCALE = 8;
-export const ORTHO_CAM_Y = OUT_H * 0.39;
+export const ORTHO_CAM_Y = OUT_H * 0.36;
 
 export const BASE_DIMS = {
   headW: 8,  headH: 8,  headD: 6,

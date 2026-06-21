@@ -7,7 +7,7 @@
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     html,body{width:100%;height:100%;overflow:hidden;background:#1e1e2e;font-family:system-ui,sans-serif;color:#cdd6f4;font-size:11px}
-    #app{display:grid;grid-template-columns:175px 1fr 150px 175px;gap:7px;padding:7px;height:100vh}
+    #app{display:grid;grid-template-columns:175px 1fr 235px 175px;gap:7px;padding:7px;height:100vh}
     .col{display:flex;flex-direction:column;gap:6px;overflow:hidden}
     .card{background:#181825;border:0.5px solid #313244;border-radius:8px;padding:8px}
     .lbl{font-size:10px;color:#6c7086;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
@@ -137,14 +137,14 @@
   </div>
 
   <!-- PREVIEW COLUMN -->
-  <div class="col">
+  <div class="col" style="overflow-y:auto">
     <div class="card" style="display:flex;flex-direction:column;gap:4px">
       <div class="lbl">Preview</div>
       <div style="display:flex;justify-content:center;margin-bottom:2px"><canvas id="outc"></canvas></div>
       <div>
         <div class="out-group-lbl">Resolution</div>
         <div class="seg" style="width:100%">
-          <button class="btn seg-btn on" data-outres="16" style="flex:1;padding:3px 2px">8</button>
+          <button class="btn seg-btn on" data-outres="25" style="flex:1;padding:3px 2px">8</button>
           <button class="btn seg-btn" data-outres="32" style="flex:1;padding:3px 2px">16</button>
           <button class="btn seg-btn" data-outres="64" style="flex:1;padding:3px 2px">32</button>
         </div>

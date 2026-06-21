@@ -13,7 +13,7 @@ export const outSize = { w: OUT_W, h: OUT_H };
 function applyCanvasSizes() {
   const { w, h } = outSize;
   outC.width = w; outC.height = h;
-  const dscale = Math.floor(128 / w); // keep preview ≤128px wide regardless of output res
+  const dscale = Math.floor(200 / w); // keep preview ≤200px wide regardless of output res
   outC.style.width  = (w * dscale) + 'px';
   outC.style.height = (h * dscale) + 'px';
   outC.style.imageRendering = 'pixelated';
