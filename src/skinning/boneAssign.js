@@ -13,7 +13,7 @@ export const JOINT_SK = {
   rKnee:     'rKnee',
 };
 
-// Clavicle pairs (torso↔lShoulder↔head) are intentionally excluded — they
+// lShoulder↔head and rShoulder↔head are intentionally excluded — they
 // produce unintuitive bone assignments for blocks near the collar/neck.
 export const BONE_PAIR_IDS = [
   ['torso',     'head'],

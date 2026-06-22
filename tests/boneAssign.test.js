@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import * as THREE from 'three';
-import { assignBone, JOINT_SK } from '../src/skinning/boneAssign.js';
+import { assignBone, JOINT_SK, BONE_PAIR_IDS } from '../src/skinning/boneAssign.js';
 
 function mockGroup(x, y, z) {
   const g = new THREE.Group();
@@ -52,4 +52,20 @@ describe('JOINT_SK', () => {
   test('lHip → lLeg',       () => expect(JOINT_SK.lHip).toBe('lLeg'));
   test('rShoulder → rArm',  () => expect(JOINT_SK.rShoulder).toBe('rArm'));
   test('rHip → rLeg',       () => expect(JOINT_SK.rHip).toBe('rLeg'));
+});
+
+describe('BONE_PAIR_IDS', () => {
+  test('has exactly 9 structural pairs', () => expect(BONE_PAIR_IDS).toHaveLength(9));
+  test('excludes clavicle visual pair lShoulder↔head', () => {
+    const hasIt = BONE_PAIR_IDS.some(([a, b]) =>
+      (a === 'lShoulder' && b === 'head') || (a === 'head' && b === 'lShoulder')
+    );
+    expect(hasIt).toBe(false);
+  });
+  test('excludes clavicle visual pair rShoulder↔head', () => {
+    const hasIt = BONE_PAIR_IDS.some(([a, b]) =>
+      (a === 'rShoulder' && b === 'head') || (a === 'head' && b === 'rShoulder')
+    );
+    expect(hasIt).toBe(false);
+  });
 });
