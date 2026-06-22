@@ -110,11 +110,12 @@ export function hideGhost() {
 
 const _hitPt = new THREE.Vector3();
 const _wPos  = new THREE.Vector3();
+const _plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 export function updateGhost(ray, bodyV) {
   if (!_dims) { _ghost.visible = false; return; }
-  const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -_activeZ);
-  if (!ray.ray.intersectPlane(plane, _hitPt)) { _ghost.visible = false; return; }
+  _plane.constant = -_activeZ;
+  if (!ray.ray.intersectPlane(_plane, _hitPt)) { _ghost.visible = false; return; }
 
   _snappedX = Math.round(_hitPt.x);
   _snappedY = Math.round(_hitPt.y);
@@ -128,7 +129,7 @@ export function updateGhost(ray, bodyV) {
 
   if (occupied) { _ghost.visible = false; return; }
 
-  _ghostMat.color.set(new THREE.Color(state.col));
+  _ghostMat.color.set(state.col);
   _ghost.position.set(_snappedX, _snappedY, _activeZ);
   _ghost.visible = true;
 }

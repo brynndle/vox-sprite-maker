@@ -847,6 +847,7 @@ function removeCustomBlock(sx, sy, sz) {
     }
   }
   if (!target) return;
+  if (target.userData.part !== 'custom') return;
 
   const parent = target.parent;
   parent.remove(target);
