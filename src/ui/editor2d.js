@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { state } from '../state.js';
-import { bodyV, clothV, root } from '../character/skeleton.js';
+import { bodyV, clothV, root, SK } from '../character/skeleton.js';
 import { BG, mat, U } from '../character/voxels.js';
 import { OUT_W, OUT_H, ORTHO_CAM_Y } from '../constants.js';
 import { renderPixelArt, outSize } from '../renderer/pixelOutput.js';
 import { pushUndo } from './undo.js';
+import { savedParts, savePart, resetPart } from '../character/parts.js';
+import { assignBone } from '../skinning/boneAssign.js';
 
 const GW = OUT_W;   // grid columns — one per world-unit of horizontal frustum
 const GH = OUT_H;   // grid rows    — one per world-unit of vertical frustum
@@ -138,45 +140,80 @@ depthSlider.addEventListener('input', () => { depthLabel.textContent = depthSlid
 document.getElementById('c2d-extrude-btn').addEventListener('click', () => {
   const depth = parseInt(depthSlider.value);
 
-  // Snapshot old body/cloth for undo
-  const oldBody  = bodyV.map(m => ({ mesh: m, parent: m.parent }));
-  const oldCloth = clothV.map(m => ({ mesh: m, parent: m.parent }));
+  const oldBody   = bodyV.map(m => ({ mesh: m, parent: m.parent }));
+  const oldCloth  = clothV.map(m => ({ mesh: m, parent: m.parent }));
+  const oldCustom = savedParts.custom ? [...savedParts.custom] : [];
 
-  // Clear current meshes
   oldBody.forEach( ({ mesh, parent }) => parent && parent.remove(mesh));
   oldCloth.forEach(({ mesh, parent }) => parent && parent.remove(mesh));
   bodyV.length = 0; clothV.length = 0;
 
-  // Build extruded slab
-  const created = [];
+  const created       = [];
+  const customEntries = [];
+
   for (let gy = 0; gy < GH; gy++) {
     for (let gx = 0; gx < GW; gx++) {
       const col = paint2D[gy][gx];
       if (!col) continue;
       const wx = (gx - GW / 2 + 0.5) * U;
       const wy = ORTHO_CAM_Y + (GH / 2 - gy - 0.5) * U;
-      for (let dz = 0; dz < depth; dz++) {
+
+      for (let i = 0; i < depth; i++) {
+        const wz       = (Math.floor(depth / 2) - i) * U;
+        const worldPos = new THREE.Vector3(wx, wy, wz);
+
+        const skKey  = assignBone(worldPos, SK);
+        const group  = SK[skKey] || root;
+        const localPos = group.worldToLocal(worldPos.clone());
+
         const m = new THREE.Mesh(BG, mat(col));
-        m.position.set(wx, wy, -dz * U);
-        m.userData.part = 'torso';
-        root.add(m);
+        m.position.copy(localPos);
+        m.userData.part = 'custom';
+        m.userData.isSkin = false;
+        m.userData.skAncestor = skKey;
+        group.add(m);
         bodyV.push(m);
-        created.push(m);
+        created.push({ mesh: m, parent: group });
+
+        customEntries.push({
+          x: +localPos.x.toFixed(4),
+          y: +localPos.y.toFixed(4),
+          z: +localPos.z.toFixed(4),
+          color: col,
+          skAncestor: skKey,
+        });
       }
     }
   }
 
+  savedParts.custom = customEntries;
+  savePart('custom', customEntries);
+  if (savedParts._skeletonOnly) resetPart('_skeletonOnly');
+
   pushUndo({
     undo() {
-      created.forEach(m => { root.remove(m); const i = bodyV.indexOf(m); if (i !== -1) bodyV.splice(i, 1); });
+      created.forEach(({ mesh, parent }) => {
+        parent.remove(mesh);
+        const i = bodyV.indexOf(mesh); if (i !== -1) bodyV.splice(i, 1);
+      });
       oldBody.forEach( ({ mesh, parent }) => { parent.add(mesh); bodyV.push(mesh); });
       oldCloth.forEach(({ mesh, parent }) => { parent.add(mesh); clothV.push(mesh); });
+      savedParts.custom = oldCustom;
+      savePart('custom', oldCustom);
     },
     redo() {
-      oldBody.forEach( ({ mesh, parent }) => { parent.remove(mesh); const i = bodyV.indexOf(mesh); if (i !== -1) bodyV.splice(i, 1); });
-      oldCloth.forEach(({ mesh, parent }) => { parent.remove(mesh); const i = clothV.indexOf(mesh); if (i !== -1) clothV.splice(i, 1); });
-      created.forEach(m => { root.add(m); bodyV.push(m); });
-    }
+      oldBody.forEach( ({ mesh, parent }) => {
+        parent.remove(mesh);
+        const i = bodyV.indexOf(mesh); if (i !== -1) bodyV.splice(i, 1);
+      });
+      oldCloth.forEach(({ mesh, parent }) => {
+        parent.remove(mesh);
+        const i = clothV.indexOf(mesh); if (i !== -1) clothV.splice(i, 1);
+      });
+      created.forEach(({ mesh, parent }) => { parent.add(mesh); bodyV.push(mesh); });
+      savedParts.custom = customEntries;
+      savePart('custom', customEntries);
+    },
   });
 
   exit2D();
