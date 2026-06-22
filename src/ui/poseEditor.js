@@ -79,6 +79,7 @@ let _poseActive = false;  // joint handles active
 let _dragId     = null;
 let _dragX = 0, _dragY = 0;
 let _savedRots  = null;
+let _selectedId = null;
 
 const _wp = new THREE.Vector3();
 const _cr = new THREE.Vector3();
@@ -150,6 +151,7 @@ export function posePointerDown(e, raycaster) {
   if (!hits.length) return false;
 
   _dragId = hits[0].object.userData.jointId;
+  _selectedId = _dragId;
   _dragX  = e.clientX;
   _dragY  = e.clientY;
 
@@ -207,6 +209,78 @@ export function posePointerUp() {
   JOINT_DEFS.forEach(({ id }) => { jointMeshes[id].material.color.set(0x89b4fa); jointMeshes[id].material.opacity = 0.9; });
   _dragId = null;
   _savedRots = null;
+}
+
+export function getSelectedJoint() { return _selectedId; }
+
+export function clearJointSelection() {
+  _selectedId = null;
+  JOINT_DEFS.forEach(({ id }) => {
+    jointMeshes[id].material.color.set(0x89b4fa);
+    jointMeshes[id].material.opacity = 0.9;
+  });
+}
+
+export function getJointState(id) {
+  const def = JOINT_DEFS.find(d => d.id === id);
+  const g = def?.getG();
+  if (!g) return null;
+  const dp = _defaultPos[id];
+  return {
+    dx: dp ? +(g.position.x - dp.x).toFixed(3) : 0,
+    dy: dp ? +(g.position.y - dp.y).toFixed(3) : 0,
+    dz: dp ? +(g.position.z - dp.z).toFixed(3) : 0,
+    rx: +THREE.MathUtils.radToDeg(g.rotation.x).toFixed(1),
+    ry: +THREE.MathUtils.radToDeg(g.rotation.y).toFixed(1),
+    rz: +THREE.MathUtils.radToDeg(g.rotation.z).toFixed(1),
+    label: def.label,
+  };
+}
+
+export function setJointPosition(id, dx, dy, dz) {
+  const def = JOINT_DEFS.find(d => d.id === id);
+  const g = def?.getG();
+  if (!g) return;
+  const dp = _defaultPos[id];
+  if (dp) {
+    g.position.x = dp.x + dx;
+    g.position.y = dp.y + dy;
+    g.position.z = dp.z + dz;
+  }
+  updateSkeleton();
+}
+
+export function setJointRotation(id, rx, ry, rz) {
+  const def = JOINT_DEFS.find(d => d.id === id);
+  const g = def?.getG();
+  if (!g) return;
+  g.rotation.set(
+    THREE.MathUtils.degToRad(rx),
+    THREE.MathUtils.degToRad(ry),
+    THREE.MathUtils.degToRad(rz)
+  );
+  updateSkeleton();
+}
+
+export function resetJoint(id) {
+  const def = JOINT_DEFS.find(d => d.id === id);
+  const g = def?.getG();
+  if (!g) return;
+
+  const snapPos = g.position.clone();
+  const snapRot = g.rotation.clone();
+
+  if (_defaultPos[id]) g.position.copy(_defaultPos[id]);
+  if (_defaultRot[id]) g.rotation.copy(_defaultRot[id]);
+  updateSkeleton();
+
+  const newPos = g.position.clone();
+  const newRot = g.rotation.clone();
+
+  pushUndo({
+    undo() { g.position.copy(snapPos); g.rotation.copy(snapRot); updateSkeleton(); },
+    redo() { g.position.copy(newPos); g.rotation.copy(newRot); updateSkeleton(); }
+  });
 }
 
 export function isPoseDragging() { return !!_dragId; }
