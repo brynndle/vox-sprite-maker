@@ -501,6 +501,21 @@ document.getElementById('new-char-btn').addEventListener('click', () => {
   document.getElementById('show-skel-chk').checked = true;
 });
 
+document.getElementById('set-default-btn').addEventListener('click', () => {
+  const seed = { ...savedParts };
+  delete seed._skeletonOnly;
+  if (!seed.custom?.length && !seed.head && !seed.torso && !seed.arm && !seed.leg) {
+    alert('Nothing to save — sculpt a body first.');
+    return;
+  }
+  const js = `// Baked-in default body. Replace this file with output from "Set as App Default" in the Export panel.\n// null = no seed (fresh build shows empty editor)\nexport const defaultSeed = ${JSON.stringify(seed, null, 2)};\n`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([js], { type: 'text/javascript' }));
+  a.download = 'defaultSeed.js';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
 // ── Raycasting / painting / sculpting ─────────────────────────────────────────
 const ray = new THREE.Raycaster();
 const m2 = new THREE.Vector2();

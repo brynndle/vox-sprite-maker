@@ -1,7 +1,14 @@
+import { defaultSeed } from './defaultSeed.js';
+
 const KEY = 'vox_parts';
 
 function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || {}; }
+  try {
+    const stored = localStorage.getItem(KEY);
+    if (stored) return JSON.parse(stored) || {};
+    if (defaultSeed) return structuredClone(defaultSeed);
+    return {};
+  }
   catch { return {}; }
 }
 
