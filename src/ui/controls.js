@@ -13,6 +13,8 @@ import { exportFrame, exportStaticSheet, exportWalkSheet } from '../export/sprit
 import { savedParts, savePart, resetPart } from '../character/parts.js';
 import { customWardrobe, saveCloth, deleteCloth } from '../character/wardrobe.js';
 import { enter2D, exit2D } from './editor2d.js';
+import { showGrid, hideGrid, updateGhost, getSnappedPos, resetZ, onScroll as gridOnScroll } from '../skinning/gridCursor.js';
+import { assignBone } from '../skinning/boneAssign.js';
 import {
   enterPoseMode, exitPoseMode,
   posePointerDown, posePointerMove, posePointerUp, isPoseDragging,
@@ -64,6 +66,10 @@ window.addEventListener('keydown', e => {
 document.querySelectorAll('[data-stool]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-stool]').forEach(x => x.classList.remove('act'));
   b.classList.add('act'); state.sculptTool = b.dataset.stool;
+  if (state.mode === 'sculpt') {
+    if (b.dataset.stool === 'add') { resetZ(); showGrid(getDims()); }
+    else hideGrid();
+  }
   const isRound = b.dataset.stool === 'round';
   document.getElementById('sculpt-size-row').style.display = isRound ? 'none' : '';
   document.getElementById('sculpt-round-rows').style.display = isRound ? '' : 'none';
@@ -88,6 +94,8 @@ document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click'
   if (state.mode === 'pose') { exitPoseMode(); clearJointSelection(); hideJointInspector(); }
   document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); state.mode = b.dataset.mode; hideGhost();
+  if (state.mode === 'sculpt' && state.sculptTool === 'add') { resetZ(); showGrid(getDims()); }
+  else hideGrid();
   if (state.mode === 'pose') enterPoseMode();
   document.getElementById('pp').style.display    = state.mode === 'paint'  ? '' : 'none';
   document.getElementById('sp').style.display    = state.mode === 'sculpt' ? '' : 'none';
@@ -100,6 +108,7 @@ document.getElementById('mode2d-btn').addEventListener('click', function () {
   const active = this.classList.toggle('on');
   if (active) {
     document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('on'));
+    hideGrid();
     enter2D();
   } else {
     exit2D();
@@ -239,6 +248,7 @@ document.querySelectorAll('[data-s]').forEach(el => {
   el.addEventListener('input', () => {
     state.S[el.dataset.s] = parseFloat(el.value);
     rebuild(); resetPose(SK, root); captureDefaults();
+    if (state.mode === 'sculpt' && state.sculptTool === 'add') showGrid(getDims());
   });
 });
 
@@ -645,6 +655,20 @@ function doAct(e) {
 c3.addEventListener('contextmenu', e => e.preventDefault());
 c3.addEventListener('mousedown', e => {
   lmx = e.clientX; lmy = e.clientY;
+  if (state.mode === 'sculpt' && state.sculptTool === 'add') {
+    if (e.shiftKey) { isOrbiting = true; return; }
+    if (e.button === 2) {
+      const { x, y, z } = getSnappedPos();
+      removeCustomBlock(x, y, z);
+      return;
+    }
+    if (e.button === 0) {
+      const { x, y, z } = getSnappedPos();
+      placeCustomBlock(new THREE.Vector3(x, y, z));
+      return;
+    }
+    return;
+  }
   if (e.button === 2 || e.shiftKey) { isOrbiting = true; return; }
   if (state.mode === 'pose') {
     if (state.playing) return;
@@ -717,6 +741,15 @@ function hideGhost() {
 
 const _gWP = new THREE.Vector3();
 function updateGhostCursor(e) {
+  if (state.mode === 'sculpt' && state.sculptTool === 'add') {
+    const r = c3.getBoundingClientRect();
+    m2.x = ((e.clientX - r.left) / r.width)  * 2 - 1;
+    m2.y = -((e.clientY - r.top)  / r.height) * 2 + 1;
+    ray.setFromCamera(m2, cam);
+    updateGhost(ray, bodyV);
+    ghostFill.visible = ghostEdge.visible = ghostSphere.visible = false;
+    return;
+  }
   if (state.mode !== 'sculpt' || isOrbiting) { hideGhost(); return; }
   const hit = getHit(e);
   if (!hit) { hideGhost(); return; }
@@ -756,3 +789,93 @@ function updateGhostCursor(e) {
 
 c3.addEventListener('mousemove', updateGhostCursor);
 c3.addEventListener('mouseleave', hideGhost);
+c3.addEventListener('wheel', e => {
+  if (state.mode !== 'sculpt' || state.sculptTool !== 'add') return;
+  e.preventDefault();
+  const D = parseInt(document.getElementById('c2d-depth').value, 10) || 4;
+  gridOnScroll(e, D);
+}, { passive: false });
+
+// ── Custom block placement (block skinning) ───────────────────────────────────
+const _bwp = new THREE.Vector3();
+
+function placeCustomBlock(worldPos) {
+  const skKey = assignBone(worldPos, SK);
+  const group = SK[skKey];
+  if (!group) return;
+
+  const localPos = group.worldToLocal(worldPos.clone());
+  const m = new THREE.Mesh(BG, mat(state.col));
+  m.position.copy(localPos);
+  m.userData.part = 'custom';
+  m.userData.isSkin = false;
+  m.userData.skAncestor = skKey;
+  group.add(m);
+  bodyV.push(m);
+
+  const entry = {
+    x: +localPos.x.toFixed(4), y: +localPos.y.toFixed(4), z: +localPos.z.toFixed(4),
+    color: state.col, skAncestor: skKey,
+  };
+  if (!savedParts.custom) savedParts.custom = [];
+  savedParts.custom.push(entry);
+  if (savedParts._skeletonOnly) resetPart('_skeletonOnly');
+  savePart('custom', savedParts.custom);
+
+  pushUndo({
+    undo() {
+      group.remove(m);
+      const i = bodyV.indexOf(m); if (i !== -1) bodyV.splice(i, 1);
+      savedParts.custom = (savedParts.custom || []).filter(e => e !== entry);
+      savePart('custom', savedParts.custom);
+    },
+    redo() {
+      group.add(m); bodyV.push(m);
+      if (!savedParts.custom) savedParts.custom = [];
+      savedParts.custom.push(entry);
+      savePart('custom', savedParts.custom);
+    },
+  });
+}
+
+function removeCustomBlock(sx, sy, sz) {
+  let target = null;
+  for (const m of bodyV) {
+    m.getWorldPosition(_bwp);
+    if (Math.round(_bwp.x) === sx && Math.round(_bwp.y) === sy && Math.round(_bwp.z) === sz) {
+      target = m; break;
+    }
+  }
+  if (!target) return;
+
+  const parent = target.parent;
+  parent.remove(target);
+  const bi = bodyV.indexOf(target); if (bi !== -1) bodyV.splice(bi, 1);
+
+  let removed = null, cidx = -1;
+  if (savedParts.custom) {
+    const lp = target.position;
+    cidx = savedParts.custom.findIndex(e =>
+      e.skAncestor === target.userData.skAncestor &&
+      Math.abs(e.x - lp.x) < 0.01 &&
+      Math.abs(e.y - lp.y) < 0.01 &&
+      Math.abs(e.z - lp.z) < 0.01
+    );
+    if (cidx !== -1) { removed = savedParts.custom[cidx]; savedParts.custom.splice(cidx, 1); }
+  }
+  savePart('custom', savedParts.custom || []);
+
+  pushUndo({
+    undo() {
+      parent.add(target); bodyV.push(target);
+      if (removed && savedParts.custom) savedParts.custom.splice(cidx, 0, removed);
+      savePart('custom', savedParts.custom || []);
+    },
+    redo() {
+      parent.remove(target);
+      const i = bodyV.indexOf(target); if (i !== -1) bodyV.splice(i, 1);
+      if (cidx !== -1 && savedParts.custom) savedParts.custom.splice(cidx, 1);
+      savePart('custom', savedParts.custom || []);
+    },
+  });
+}
