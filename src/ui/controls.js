@@ -17,7 +17,39 @@ import {
   enterPoseMode, exitPoseMode,
   posePointerDown, posePointerMove, posePointerUp, isPoseDragging,
   resetSkeletonPose, setSkeletonVisible, isSkeletonVisible,
+  captureDefaults,
+  getSelectedJoint, clearJointSelection,
+  getJointState, setJointPosition, setJointRotation, resetJoint,
 } from './poseEditor.js';
+
+// ── Joint inspector panel helpers ─────────────────────────────────────────────
+const _jiInspector = document.getElementById('joint-inspector');
+const _jiNoSel     = document.getElementById('pose-no-selection');
+const _jiName      = document.getElementById('joint-inspector-name');
+
+function syncJointSliders() {
+  const id = getSelectedJoint(); if (!id) return;
+  const s = getJointState(id); if (!s) return;
+  document.getElementById('jp-x').value  = s.dx;  document.getElementById('jp-xv').textContent = s.dx.toFixed(1);
+  document.getElementById('jp-y').value  = s.dy;  document.getElementById('jp-yv').textContent = s.dy.toFixed(1);
+  document.getElementById('jp-z').value  = s.dz;  document.getElementById('jp-zv').textContent = s.dz.toFixed(1);
+  document.getElementById('jr-x').value  = s.rx;  document.getElementById('jr-xv').textContent = s.rx.toFixed(0) + '°';
+  document.getElementById('jr-y').value  = s.ry;  document.getElementById('jr-yv').textContent = s.ry.toFixed(0) + '°';
+  document.getElementById('jr-z').value  = s.rz;  document.getElementById('jr-zv').textContent = s.rz.toFixed(0) + '°';
+}
+
+function showJointInspector(id) {
+  const s = getJointState(id); if (!s) return;
+  _jiName.textContent = s.label;
+  _jiInspector.style.display = '';
+  _jiNoSel.style.display = 'none';
+  syncJointSliders();
+}
+
+function hideJointInspector() {
+  _jiInspector.style.display = 'none';
+  _jiNoSel.style.display = '';
+}
 
 // ── Undo buttons ──────────────────────────────────────────────────────────────
 document.getElementById('undo-btn').addEventListener('click', doUndo);
@@ -53,7 +85,7 @@ document.getElementById('round-strength').addEventListener('input', e => {
 
 // ── Mode buttons ──────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
-  if (state.mode === 'pose') exitPoseMode();
+  if (state.mode === 'pose') { exitPoseMode(); clearJointSelection(); hideJointInspector(); }
   document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); state.mode = b.dataset.mode; hideGhost();
   if (state.mode === 'pose') enterPoseMode();
@@ -75,9 +107,49 @@ document.getElementById('mode2d-btn').addEventListener('click', function () {
 });
 
 // ── Pose panel controls ───────────────────────────────────────────────────────
-document.getElementById('reset-pose-btn').addEventListener('click', resetSkeletonPose);
+document.getElementById('reset-pose-btn').addEventListener('click', () => {
+  resetSkeletonPose();
+  if (getSelectedJoint()) syncJointSliders();
+});
 document.getElementById('show-skel-chk').addEventListener('change', e => {
   setSkeletonVisible(e.target.checked);
+});
+document.getElementById('ji-deselect').addEventListener('click', () => {
+  clearJointSelection(); hideJointInspector();
+});
+document.getElementById('reset-joint-btn').addEventListener('click', () => {
+  const id = getSelectedJoint(); if (!id) return;
+  resetJoint(id); syncJointSliders();
+});
+
+// Position sliders
+['x','y','z'].forEach(axis => {
+  document.getElementById(`jp-${axis}`).addEventListener('input', e => {
+    const id = getSelectedJoint(); if (!id) return;
+    const s = getJointState(id); if (!s) return;
+    const v = parseFloat(e.target.value);
+    document.getElementById(`jp-${axis}v`).textContent = v.toFixed(1);
+    setJointPosition(id,
+      axis === 'x' ? v : s.dx,
+      axis === 'y' ? v : s.dy,
+      axis === 'z' ? v : s.dz
+    );
+  });
+});
+
+// Rotation sliders
+['x','y','z'].forEach(axis => {
+  document.getElementById(`jr-${axis}`).addEventListener('input', e => {
+    const id = getSelectedJoint(); if (!id) return;
+    const s = getJointState(id); if (!s) return;
+    const v = parseFloat(e.target.value);
+    document.getElementById(`jr-${axis}v`).textContent = v.toFixed(0) + '°';
+    setJointRotation(id,
+      axis === 'x' ? v : s.rx,
+      axis === 'y' ? v : s.ry,
+      axis === 'z' ? v : s.rz
+    );
+  });
 });
 
 // ── Tool buttons ──────────────────────────────────────────────────────────────
@@ -131,7 +203,10 @@ document.querySelectorAll('[data-ocol]').forEach(b => b.addEventListener('click'
 
 // ── Body shape sliders ────────────────────────────────────────────────────────
 document.querySelectorAll('[data-s]').forEach(el => {
-  el.addEventListener('input', () => { state.S[el.dataset.s] = parseFloat(el.value); rebuild(); });
+  el.addEventListener('input', () => {
+    state.S[el.dataset.s] = parseFloat(el.value);
+    rebuild(); resetPose(SK, root); captureDefaults();
+  });
 });
 
 // ── Color pickers ─────────────────────────────────────────────────────────────
@@ -365,7 +440,7 @@ document.getElementById('reset-part-btn').addEventListener('click', () => {
   if (!selectedEditPart) return;
   if (!confirm(`Reset ${selectedEditPart} to default procedural shape?`)) return;
   resetPart(selectedEditPart);
-  rebuild();
+  rebuild(); resetPose(SK, root); captureDefaults();
   updatePartUI();
 });
 
@@ -531,8 +606,14 @@ c3.addEventListener('mousedown', e => {
     m2.x = ((e.clientX - r.left) / r.width) * 2 - 1;
     m2.y = -((e.clientY - r.top) / r.height) * 2 + 1;
     ray.setFromCamera(m2, cam);
-    posePointerDown(e, ray);
-    return; // never paint/sculpt in pose mode
+    const jointHit = posePointerDown(e, ray);
+    if (jointHit) {
+      showJointInspector(getSelectedJoint());
+    } else {
+      clearJointSelection();
+      hideJointInspector();
+    }
+    return;
   }
   isPainting = true;
   if (state.mode === 'paint' || state.mode === 'cloth') { strokeUndoMap = new Map(); doAct(e); }
@@ -543,7 +624,7 @@ c3.addEventListener('mousemove', e => {
   const dx = e.clientX - lmx, dy = e.clientY - lmy;
   lmx = e.clientX; lmy = e.clientY;
   if (isOrbiting) { state.camT -= dx * 0.007; state.camP = Math.max(-0.4, Math.min(1.2, state.camP + dy * 0.006)); syncCam(); }
-  else if (isPoseDragging()) { posePointerMove(e); }
+  else if (isPoseDragging()) { posePointerMove(e); syncJointSliders(); }
   else if (isPainting && (state.mode === 'paint' || state.mode === 'cloth')) doAct(e);
   else if (isPainting && state.mode === 'sculpt' && state.sculptTool === 'round') doAct(e);
 });
