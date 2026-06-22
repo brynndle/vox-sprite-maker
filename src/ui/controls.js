@@ -122,9 +122,20 @@ document.getElementById('reset-joint-btn').addEventListener('click', () => {
   resetJoint(id); syncJointSliders();
 });
 
+// Slider undo: snapshot joint state on grab, push one record on release
+let _sliderSnap = null;
+
+function _onSliderPointerDown() {
+  const id = getSelectedJoint(); if (!id) return;
+  const s = getJointState(id); if (!s) return;
+  _sliderSnap = { id, s: { ...s } };
+}
+
 // Position sliders
 ['x','y','z'].forEach(axis => {
-  document.getElementById(`jp-${axis}`).addEventListener('input', e => {
+  const el = document.getElementById(`jp-${axis}`);
+  el.addEventListener('pointerdown', _onSliderPointerDown);
+  el.addEventListener('input', e => {
     const id = getSelectedJoint(); if (!id) return;
     const s = getJointState(id); if (!s) return;
     const v = parseFloat(e.target.value);
@@ -135,11 +146,23 @@ document.getElementById('reset-joint-btn').addEventListener('click', () => {
       axis === 'z' ? v : s.dz
     );
   });
+  el.addEventListener('change', () => {
+    const id = getSelectedJoint(); if (!id || !_sliderSnap || _sliderSnap.id !== id) return;
+    const snap = _sliderSnap.s;
+    const cur  = getJointState(id); if (!cur) return;
+    pushUndo({
+      undo() { setJointPosition(id, snap.dx, snap.dy, snap.dz); setJointRotation(id, snap.rx, snap.ry, snap.rz); syncJointSliders(); },
+      redo() { setJointPosition(id, cur.dx,  cur.dy,  cur.dz);  setJointRotation(id, cur.rx,  cur.ry,  cur.rz);  syncJointSliders(); },
+    });
+    _sliderSnap = null;
+  });
 });
 
 // Rotation sliders
 ['x','y','z'].forEach(axis => {
-  document.getElementById(`jr-${axis}`).addEventListener('input', e => {
+  const el = document.getElementById(`jr-${axis}`);
+  el.addEventListener('pointerdown', _onSliderPointerDown);
+  el.addEventListener('input', e => {
     const id = getSelectedJoint(); if (!id) return;
     const s = getJointState(id); if (!s) return;
     const v = parseFloat(e.target.value);
@@ -149,6 +172,16 @@ document.getElementById('reset-joint-btn').addEventListener('click', () => {
       axis === 'y' ? v : s.ry,
       axis === 'z' ? v : s.rz
     );
+  });
+  el.addEventListener('change', () => {
+    const id = getSelectedJoint(); if (!id || !_sliderSnap || _sliderSnap.id !== id) return;
+    const snap = _sliderSnap.s;
+    const cur  = getJointState(id); if (!cur) return;
+    pushUndo({
+      undo() { setJointPosition(id, snap.dx, snap.dy, snap.dz); setJointRotation(id, snap.rx, snap.ry, snap.rz); syncJointSliders(); },
+      redo() { setJointPosition(id, cur.dx,  cur.dy,  cur.dz);  setJointRotation(id, cur.rx,  cur.ry,  cur.rz);  syncJointSliders(); },
+    });
+    _sliderSnap = null;
   });
 });
 
@@ -602,6 +635,7 @@ c3.addEventListener('mousedown', e => {
   lmx = e.clientX; lmy = e.clientY;
   if (e.button === 2 || e.shiftKey) { isOrbiting = true; return; }
   if (state.mode === 'pose') {
+    if (state.playing) return;
     const r = c3.getBoundingClientRect();
     m2.x = ((e.clientX - r.left) / r.width) * 2 - 1;
     m2.y = -((e.clientY - r.top) / r.height) * 2 + 1;
@@ -613,7 +647,7 @@ c3.addEventListener('mousedown', e => {
       clearJointSelection();
       hideJointInspector();
     }
-    return;
+    return; // never paint/sculpt in pose mode
   }
   isPainting = true;
   if (state.mode === 'paint' || state.mode === 'cloth') { strokeUndoMap = new Map(); doAct(e); }
