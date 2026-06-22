@@ -159,7 +159,8 @@
 
   <!-- CENTER -->
   <div class="col">
-    <div id="vc"><canvas id="c3"></canvas><span class="hint">Paint: drag · Orbit: shift/right drag · Sculpt delete: ⌘+click</span>
+    <div id="vc" style="position:relative"><canvas id="c3"></canvas><span class="hint">Paint: drag · Orbit: shift/right drag · Sculpt delete: ⌘+click</span>
+      <span id="z-hud" style="display:none;position:absolute;bottom:28px;left:8px;font-family:system-ui,sans-serif;font-size:11px;color:#cba6f7;pointer-events:none;background:rgba(17,17,27,0.65);padding:2px 6px;border-radius:3px"></span>
       <div id="vc2d" style="display:none;flex-direction:column;position:absolute;inset:0;z-index:5;background:#11111b">
         <canvas id="c2d" style="flex:1;display:block;cursor:crosshair"></canvas>
         <div style="display:flex;gap:6px;padding:6px 8px;background:#181825;border-top:0.5px solid #313244;align-items:center;flex-shrink:0">
