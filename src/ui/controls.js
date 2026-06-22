@@ -479,6 +479,18 @@ document.getElementById('reset-part-btn').addEventListener('click', () => {
 
 updatePartUI();
 
+document.getElementById('new-char-btn').addEventListener('click', () => {
+  if (!confirm('Start with a bare skeleton? This clears all current voxels.')) return;
+  ['head', 'torso', 'arm', 'leg', 'custom'].forEach(k => resetPart(k));
+  resetPart('_skeletonOnly');
+  savePart('_skeletonOnly', true);
+  rebuild();
+  resetPose(SK, root);
+  captureDefaults();
+  setSkeletonVisible(true);
+  document.getElementById('show-skel-chk').checked = true;
+});
+
 // ── Raycasting / painting / sculpting ─────────────────────────────────────────
 const ray = new THREE.Raycaster();
 const m2 = new THREE.Vector2();

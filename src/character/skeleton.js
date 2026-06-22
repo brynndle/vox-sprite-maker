@@ -45,7 +45,7 @@ export function rebuild() {
       bodyV.push(m); partMap.head = partMap.head || []; partMap.head.push(m);
       headGroup.add(m);
     });
-  } else {
+  } else if (!savedParts._skeletonOnly) {
     const headB = voxBlock(HW, HH, HD, state.skin, { roundCorners: true });
     headB.ms.forEach(m => {
       m.userData.part = 'head'; m.userData.isSkin = true;
@@ -71,7 +71,7 @@ export function rebuild() {
       bodyV.push(m); partMap[m.userData.part] = partMap[m.userData.part] || []; partMap[m.userData.part].push(m);
       tg.add(m);
     });
-  } else {
+  } else if (!savedParts._skeletonOnly) {
     const torsoB = voxBlock(TW, TH, TD, GRAY);
     torsoB.ms.forEach(m => { m.userData.part = 'torso'; bodyV.push(m); partMap.torso = partMap.torso || []; partMap.torso.push(m); });
     tg.add(torsoB.g);
@@ -98,7 +98,7 @@ export function rebuild() {
         m.userData.part = e.part.replace(/^l/, side); m.userData.isSkin = e.isSkin || false;
         bodyV.push(m); targetGroup.add(m);
       });
-    } else {
+    } else if (!savedParts._skeletonOnly) {
       const ua = voxBlock(AW, UAH, AW, GRAY, { roundCorners: true });
       ua.g.position.set(0, -UAH * U, 0);
       ua.ms.forEach(m => { m.userData.part = side + 'UpperArm'; bodyV.push(m); });
@@ -131,7 +131,7 @@ export function rebuild() {
         m.userData.part = e.part.replace(/^l/, side); m.userData.isSkin = e.isSkin || false;
         bodyV.push(m); targetGroup.add(m);
       });
-    } else {
+    } else if (!savedParts._skeletonOnly) {
       const ul = voxBlock(LW, ULH, LW, GRAY);
       ul.g.position.set(0, -ULH * U, 0);
       ul.ms.forEach(m => { m.userData.part = side + 'UpperLeg'; bodyV.push(m); });
@@ -147,6 +147,21 @@ export function rebuild() {
     }
   }
   makeLeg('l'); makeLeg('r');
+
+  // Custom blocks from block skinning — parented to the stored SK group
+  if (savedParts.custom && savedParts.custom.length) {
+    savedParts.custom.forEach(e => {
+      const group = SK[e.skAncestor];
+      if (!group) return;
+      const m = new THREE.Mesh(BG, mat(e.color));
+      m.position.set(e.x, e.y, e.z);
+      m.userData.part = 'custom';
+      m.userData.isSkin = false;
+      m.userData.skAncestor = e.skAncestor;
+      bodyV.push(m);
+      group.add(m);
+    });
+  }
 
   applySkin();
   rebuildCloth(SK, root, clothV, getDims);
