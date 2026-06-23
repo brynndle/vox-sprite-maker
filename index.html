@@ -55,6 +55,19 @@
     .out-preview{display:flex;gap:12px;align-items:flex-end;justify-content:center;padding:4px 0}
     #outc{image-rendering:pixelated;border:0.5px solid #45475a;border-radius:3px}
     .out-canvas-wrap{display:flex;flex-direction:column;align-items:center}
+    .lp-group { margin-bottom: 2px; }
+    .lp-header { display:flex;align-items:center;gap:4px;padding:3px 2px;cursor:pointer;border-radius:3px;user-select:none; }
+    .lp-header:hover { background:#1e1e2e; }
+    .lp-header.drag-over { background:#1e3a5f !important; border-radius:3px; }
+    .lp-toggle { font-size:9px;width:10px;flex-shrink:0;color:#6c7086; }
+    .lp-eye { cursor:pointer;font-size:11px;width:14px;flex-shrink:0;opacity:0.75;line-height:1; }
+    .lp-eye.lp-hidden { opacity:0.22; }
+    .lp-label { font-size:10px;flex:1; }
+    .lp-row { display:flex;align-items:center;gap:4px;padding:2px 2px 2px 18px;border-radius:2px; }
+    .lp-row:hover { background:#1e1e2e; }
+    .lp-row.lp-dragging { opacity:0.35; }
+    .lp-cloth-row.lp-equipped { color:#a6e3a1; }
+    .lp-cloth-row.lp-unequipped { opacity:0.45; }
   </style>
 </head>
 <body>
@@ -93,6 +106,7 @@
           <button class="btn tbtn act" data-stool="add">＋ Add</button>
           <button class="btn tbtn" data-stool="delete">✕ Delete</button>
           <button class="btn tbtn" data-stool="round">⊙ Round</button>
+          <button class="btn tbtn" data-stool="bone">🦴 Bone</button>
         </div>
         <div id="sculpt-size-row" class="srow">
           <label>Size</label>
@@ -110,6 +124,11 @@
             <input type="range" id="round-strength" min="0.2" max="1.0" step="0.05" value="0.7">
             <span id="round-strength-val" style="width:28px;text-align:right;color:#89b4fa;font-size:10px">0.7</span>
           </div>
+        </div>
+        <div id="sculpt-bone-rows" style="display:none">
+          <div style="font-size:9px;color:#6c7086;margin-bottom:3px">Click a custom block to select it:</div>
+          <div style="font-size:10px;color:#cba6f7;margin-bottom:5px">Bone: <span id="bone-current">—</span></div>
+          <div id="bone-picker" style="display:grid;grid-template-columns:1fr 1fr;gap:3px"></div>
         </div>
         <div style="font-size:10px;color:#6c7086;line-height:1.9;padding:2px 0">
           <b style="color:#cdd6f4">Drag</b> — sculpt<br>
@@ -186,9 +205,9 @@
       <div>
         <div class="out-group-lbl">Resolution</div>
         <div class="seg" style="width:100%">
-          <button class="btn seg-btn on" data-outres="25" style="flex:1;padding:3px 2px">8</button>
-          <button class="btn seg-btn" data-outres="32" style="flex:1;padding:3px 2px">16</button>
-          <button class="btn seg-btn" data-outres="64" style="flex:1;padding:3px 2px">32</button>
+          <button class="btn seg-btn on" data-outres="1" style="flex:1;padding:3px 2px">1x</button>
+          <button class="btn seg-btn" data-outres="2" style="flex:1;padding:3px 2px">2x</button>
+          <button class="btn seg-btn" data-outres="4" style="flex:1;padding:3px 2px">4x</button>
         </div>
       </div>
       <div>
@@ -226,10 +245,6 @@
       </div>
       <button id="playbtn" class="btn" style="width:100%;padding:5px">▶ Play</button>
     </div>
-  </div>
-
-  <!-- RIGHT PANEL -->
-  <div class="col right-col" style="overflow-y:auto">
     <div class="card">
       <div class="lbl">Direction</div>
       <div class="dir-grid">
@@ -245,53 +260,43 @@
       </div>
     </div>
     <div class="card">
-      <div class="lbl">Eyes</div><div class="preset-row" id="eye-presets"></div>
+      <div class="lbl">Face</div>
+      <div class="lbl" style="margin-top:3px">Eyes</div><div class="preset-row" id="eye-presets"></div>
       <div class="lbl">Brows</div><div class="preset-row" id="brow-presets"></div>
       <div class="lbl">Mouth</div><div class="preset-row" id="mouth-presets"></div>
       <div class="lbl">Nose</div><div class="preset-row" id="nose-presets"></div>
+      <div class="lbl" style="margin-top:3px">Hair</div><div class="preset-row" id="hair-presets"></div>
     </div>
+  </div>
+
+  <!-- LAYER PANEL -->
+  <div class="col right-col" style="overflow-y:auto">
     <div class="card">
-      <div class="lbl">Hair</div><div class="preset-row" id="hair-presets"></div>
-    </div>
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
-        <div class="lbl" style="margin-bottom:0">Wardrobe</div>
-        <button class="btn" id="new-cloth-btn" style="padding:2px 7px;font-size:10px">+ New</button>
+      <div style="display:flex;gap:3px;margin-bottom:6px">
+        <button class="btn seg-btn on" id="lp-tab-bone" style="flex:1;padding:3px 2px;font-size:10px">Bone</button>
+        <button class="btn seg-btn" id="lp-tab-layers" style="flex:1;padding:3px 2px;font-size:10px">Layers</button>
       </div>
-      <div class="wgrid" id="wgrid"></div>
+      <div id="lp-bone-view"></div>
+      <div id="lp-layer-view" style="display:none"></div>
+    </div>
+    <div class="card">
+      <button class="btn" id="new-cloth-btn" style="width:100%;padding:4px">+ New clothing</button>
     </div>
     <div class="card" id="cloth-editor-card" style="display:none">
-      <div class="lbl">Clothing Editor</div>
-      <div class="srow"><label>Name</label><input id="cloth-name" type="text" placeholder="e.g. Red Coat" style="flex:1;padding:2px 4px;background:#11111b;border:0.5px solid #45475a;border-radius:3px;color:#cdd6f4;font-family:system-ui,sans-serif;font-size:11px"></div>
-      <div class="srow"><label>Slot</label><select id="cloth-slot" style="flex:1;background:#11111b;border:0.5px solid #45475a;border-radius:3px;color:#cdd6f4;font-family:system-ui,sans-serif;font-size:11px;padding:2px 4px"><option value="top">Top</option><option value="legs">Legs</option><option value="feet">Feet</option><option value="head">Head</option></select></div>
-      <div class="srow"><label>Style</label><select id="cloth-style" style="flex:1;background:#11111b;border:0.5px solid #45475a;border-radius:3px;color:#cdd6f4;font-family:system-ui,sans-serif;font-size:11px;padding:2px 4px"></select></div>
-      <div class="srow"><label>Color</label><input id="cloth-color" type="color" style="flex:1;height:22px;border-radius:3px;border:0.5px solid #45475a;cursor:pointer;padding:1px;background:transparent"></div>
-      <div style="display:flex;gap:4px;margin-top:6px">
-        <button class="btn" id="cloth-save-btn" style="flex:1;padding:5px">Save</button>
-        <button class="btn" id="cloth-delete-btn" style="flex:1;padding:5px;display:none">Delete</button>
-        <button class="btn" id="cloth-cancel-btn" style="flex:1;padding:5px">Cancel</button>
+      <div class="lbl">New Clothing</div>
+      <div class="cprow"><label>Name</label><input id="cloth-name" style="flex:1;background:#1e1e2e;border:0.5px solid #45475a;color:#cdd6f4;border-radius:3px;padding:2px 5px;font-size:10px"></div>
+      <div class="cprow"><label>Slot</label>
+        <select id="cloth-slot" style="flex:1;background:#1e1e2e;border:0.5px solid #45475a;color:#cdd6f4;border-radius:3px;padding:2px;font-size:10px">
+          <option value="top">Top</option><option value="legs">Legs</option><option value="feet">Feet</option><option value="head">Head</option>
+        </select>
       </div>
-    </div>
-    <div class="card">
-      <div class="lbl">Body Parts</div>
-      <div class="wgrid" style="gap:3px;margin-bottom:6px">
-        <button class="btn wbtn" data-editpart="head">Head</button>
-        <button class="btn wbtn" data-editpart="torso">Torso</button>
-        <button class="btn wbtn" data-editpart="arm">Arms</button>
-        <button class="btn wbtn" data-editpart="leg">Legs</button>
+      <div class="cprow"><label>Style</label><select id="cloth-style" style="flex:1;background:#1e1e2e;border:0.5px solid #45475a;color:#cdd6f4;border-radius:3px;padding:2px;font-size:10px"></select></div>
+      <div class="cprow"><label>Color</label><input type="color" id="cloth-color" value="#888888"></div>
+      <div style="display:flex;gap:4px;margin-top:5px">
+        <button class="btn" id="cloth-save-btn" style="flex:1;padding:3px">Save</button>
+        <button class="btn" id="cloth-cancel-btn" style="flex:1;padding:3px">Cancel</button>
+        <button class="btn" id="cloth-delete-btn" style="padding:3px 6px;color:#f38ba8;border-color:#f38ba8;display:none">✕</button>
       </div>
-      <div id="part-info" style="font-size:10px;color:#6c7086;margin-bottom:6px;min-height:14px">Select a part to edit or save</div>
-      <div style="display:flex;gap:4px">
-        <button class="btn" id="save-part-btn" style="flex:1;padding:5px" disabled>Save shape</button>
-        <button class="btn" id="reset-part-btn" style="flex:1;padding:5px" disabled>Reset</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="lbl">Export</div>
-      <button class="btn tbtn" id="expF">📷 This frame</button>
-      <button class="btn tbtn" id="expS">🗂 8 dirs (static)</button>
-      <button class="btn tbtn" id="expW">🏃 Walk (512×32)</button>
-      <button class="btn tbtn" id="set-default-btn" style="margin-top:4px">💾 Set as app default</button>
     </div>
   </div>
 </div>
