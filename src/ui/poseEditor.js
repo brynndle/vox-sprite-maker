@@ -43,6 +43,7 @@ JOINT_DEFS.forEach(({ id }) => {
   );
   m.renderOrder = 999;
   m.visible = false;
+  m.layers.set(1);
   m.userData.jointId = id;
   scene.add(m);
   jointMeshes[id] = m;
@@ -59,6 +60,7 @@ const boneLines = new THREE.LineSegments(
 boneLines.renderOrder = 998;
 boneLines.visible = false;
 boneLines.frustumCulled = false;
+boneLines.layers.set(1);
 scene.add(boneLines);
 
 const _defaultPos = {};  // id → THREE.Vector3

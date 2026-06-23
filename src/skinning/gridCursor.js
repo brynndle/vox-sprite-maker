@@ -16,6 +16,7 @@ const _ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), _ghostMat);
 _ghost.renderOrder = 10;
 _ghost.visible    = false;
 _ghost.raycast    = () => {};
+_ghost.layers.set(1);
 scene.add(_ghost);
 
 // ── Grid geometry (rebuilt on showGrid) ───────────────────────────────────────
@@ -84,11 +85,13 @@ export function showGrid(dims) {
   _volLines = new THREE.LineSegments(_buildVolGeo(xMin, xMax, yMin, yMax, zMin, zMax), _volMat);
   _volLines.renderOrder = 5;
   _volLines.frustumCulled = false;
+  _volLines.layers.set(1);
   scene.add(_volLines);
 
   _layLines = new THREE.LineSegments(_buildLayGeo(xMin, xMax, yMin, yMax), _layMat);
   _layLines.renderOrder = 6;
   _layLines.frustumCulled = false;
+  _layLines.layers.set(1);
   scene.add(_layLines);
 
   resetZ();

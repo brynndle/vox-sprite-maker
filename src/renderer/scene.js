@@ -18,6 +18,7 @@ export function getVW() { return vc.clientWidth || window.innerWidth - 175 * 2 -
 export function getVH() { return vc.clientHeight || window.innerHeight - 80; }
 
 export const cam = new THREE.PerspectiveCamera(36, getVW() / getVH(), 0.1, 600);
+cam.layers.enable(1); // see editor overlays (grid, ghost, skeleton handles)
 export const renderer = new THREE.WebGLRenderer({ canvas: c3, antialias: true, preserveDrawingBuffer: true });
 
 export function resizeRenderer() {
