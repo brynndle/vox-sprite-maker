@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { state, PAL } from '../state.js';
 import { cam, syncCam, scene } from '../renderer/scene.js';
 import { setOutSize } from '../renderer/pixelOutput.js';
+import { OUT_W, OUT_H } from '../constants.js';
 import { SK, root, bodyV, clothV, partMap, rebuild, applySkin } from '../character/skeleton.js';
 import { getDims, mat, GRAY, BG, U } from '../character/voxels.js';
 import { rebuildCloth, WDEFS, equipped } from '../character/clothing.js';
@@ -15,6 +16,7 @@ import { customWardrobe, saveCloth, deleteCloth } from '../character/wardrobe.js
 import { enter2D, exit2D } from './editor2d.js';
 import { showGrid, hideGrid, updateGhost, getSnappedPos, resetZ, onScroll as gridOnScroll } from '../skinning/gridCursor.js';
 import { assignBone } from '../skinning/boneAssign.js';
+import { init as lpInit, refresh as lpRefresh } from './layerPanel.js';
 import {
   enterPoseMode, exitPoseMode,
   posePointerDown, posePointerMove, posePointerUp, isPoseDragging,
@@ -66,13 +68,16 @@ window.addEventListener('keydown', e => {
 document.querySelectorAll('[data-stool]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-stool]').forEach(x => x.classList.remove('act'));
   b.classList.add('act'); state.sculptTool = b.dataset.stool;
+  if (b.dataset.stool !== 'bone') clearBoneSelection();
   if (state.mode === 'sculpt') {
     if (b.dataset.stool === 'add') { resetZ(); showGrid(getDims()); }
     else hideGrid();
   }
   const isRound = b.dataset.stool === 'round';
-  document.getElementById('sculpt-size-row').style.display = isRound ? 'none' : '';
+  const isBone  = b.dataset.stool === 'bone';
+  document.getElementById('sculpt-size-row').style.display  = (isRound || isBone) ? 'none' : '';
   document.getElementById('sculpt-round-rows').style.display = isRound ? '' : 'none';
+  document.getElementById('sculpt-bone-rows').style.display  = isBone  ? '' : 'none';
 }));
 
 // ── Sculpt tool sliders ───────────────────────────────────────────────────────
@@ -92,6 +97,7 @@ document.getElementById('round-strength').addEventListener('input', e => {
 // ── Mode buttons ──────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => {
   if (state.mode === 'pose') { exitPoseMode(); clearJointSelection(); hideJointInspector(); }
+  if (state.mode === 'sculpt') clearBoneSelection();
   document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); state.mode = b.dataset.mode; hideGhost();
   if (state.mode === 'sculpt' && state.sculptTool === 'add') { resetZ(); showGrid(getDims()); }
@@ -225,8 +231,8 @@ document.getElementById('playbtn').addEventListener('click', function () {
 document.querySelectorAll('[data-outres]').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('[data-outres]').forEach(x => x.classList.remove('on'));
   b.classList.add('on');
-  const w = parseInt(b.dataset.outres);
-  setOutSize(w, w * 2);
+  const scale = parseInt(b.dataset.outres);
+  setOutSize(OUT_W * scale, OUT_H * scale);
 }));
 
 // ── Shading / outline / outline-color buttons ─────────────────────────────────
@@ -249,6 +255,7 @@ document.querySelectorAll('[data-s]').forEach(el => {
     state.S[el.dataset.s] = parseFloat(el.value);
     rebuild(); resetPose(SK, root); captureDefaults();
     if (state.mode === 'sculpt' && state.sculptTool === 'add') showGrid(getDims());
+    lpRefresh();
   });
 });
 
@@ -499,6 +506,7 @@ document.getElementById('new-char-btn').addEventListener('click', () => {
   captureDefaults();
   setSkeletonVisible(true);
   document.getElementById('show-skel-chk').checked = true;
+  lpRefresh();
 });
 
 document.getElementById('set-default-btn').addEventListener('click', () => {
@@ -514,6 +522,98 @@ document.getElementById('set-default-btn').addEventListener('click', () => {
   a.download = 'defaultSeed.js';
   a.click();
   URL.revokeObjectURL(a.href);
+});
+
+// ── Bone override tool ────────────────────────────────────────────────────────
+const BONE_LABELS = {
+  head: 'Head', torso: 'Torso',
+  lArm: 'L Shldr', lElbow: 'L Elbow',
+  rArm: 'R Shldr', rElbow: 'R Elbow',
+  lLeg: 'L Hip',   lKnee:  'L Knee',
+  rLeg: 'R Hip',   rKnee:  'R Knee',
+};
+
+let _boneSelMesh = null;
+let _boneSelOrigMat = null;
+const _boneHighlightMat = new THREE.MeshBasicMaterial({ color: 0xcba6f7, transparent: true, opacity: 0.85 });
+
+function clearBoneSelection() {
+  if (_boneSelMesh && _boneSelOrigMat) _boneSelMesh.material = _boneSelOrigMat;
+  _boneSelMesh = null;
+  _boneSelOrigMat = null;
+  document.getElementById('bone-current').textContent = '—';
+  document.querySelectorAll('.bone-btn').forEach(b => b.classList.remove('on'));
+}
+
+function selectBoneMesh(mesh) {
+  clearBoneSelection();
+  _boneSelMesh = mesh;
+  _boneSelOrigMat = mesh.material;
+  mesh.material = _boneHighlightMat;
+  document.getElementById('bone-current').textContent = mesh.userData.skAncestor;
+  document.querySelectorAll('.bone-btn').forEach(b =>
+    b.classList.toggle('on', b.dataset.bone === mesh.userData.skAncestor)
+  );
+}
+
+function reassignBone(mesh, newSkKey) {
+  const newGroup = SK[newSkKey];
+  if (!newGroup) return;
+  const oldGroup = mesh.parent;
+  const oldSkKey = mesh.userData.skAncestor;
+  if (oldGroup === newGroup) return;
+
+  const oldLocalPos = mesh.position.clone();
+
+  const cidx = savedParts.custom ? savedParts.custom.findIndex(e =>
+    e.skAncestor === oldSkKey &&
+    Math.abs(e.x - oldLocalPos.x) < 0.01 &&
+    Math.abs(e.y - oldLocalPos.y) < 0.01 &&
+    Math.abs(e.z - oldLocalPos.z) < 0.01
+  ) : -1;
+
+  const worldPos = new THREE.Vector3();
+  mesh.getWorldPosition(worldPos);
+  const newLocalPos = newGroup.worldToLocal(worldPos.clone());
+
+  oldGroup.remove(mesh);
+  mesh.position.copy(newLocalPos);
+  mesh.userData.skAncestor = newSkKey;
+  newGroup.add(mesh);
+
+  function updateEntry(lp, sk) {
+    if (cidx !== -1 && savedParts.custom) {
+      savedParts.custom[cidx] = { ...savedParts.custom[cidx], x: +lp.x.toFixed(4), y: +lp.y.toFixed(4), z: +lp.z.toFixed(4), skAncestor: sk };
+      savePart('custom', savedParts.custom);
+    }
+  }
+  updateEntry(newLocalPos, newSkKey);
+
+  document.getElementById('bone-current').textContent = newSkKey;
+  document.querySelectorAll('.bone-btn').forEach(b => b.classList.toggle('on', b.dataset.bone === newSkKey));
+
+  pushUndo({
+    undo() {
+      newGroup.remove(mesh); mesh.position.copy(oldLocalPos); mesh.userData.skAncestor = oldSkKey; oldGroup.add(mesh);
+      updateEntry(oldLocalPos, oldSkKey);
+      if (_boneSelMesh === mesh) { document.getElementById('bone-current').textContent = oldSkKey; document.querySelectorAll('.bone-btn').forEach(b => b.classList.toggle('on', b.dataset.bone === oldSkKey)); }
+    },
+    redo() {
+      oldGroup.remove(mesh); mesh.position.copy(newLocalPos); mesh.userData.skAncestor = newSkKey; newGroup.add(mesh);
+      updateEntry(newLocalPos, newSkKey);
+      if (_boneSelMesh === mesh) { document.getElementById('bone-current').textContent = newSkKey; document.querySelectorAll('.bone-btn').forEach(b => b.classList.toggle('on', b.dataset.bone === newSkKey)); }
+    },
+  });
+}
+
+// Build bone picker buttons once
+const _bonePicker = document.getElementById('bone-picker');
+Object.entries(BONE_LABELS).forEach(([key, label]) => {
+  const b = document.createElement('button');
+  b.className = 'btn bone-btn'; b.dataset.bone = key; b.textContent = label;
+  b.style.cssText = 'padding:3px 4px;text-align:center;font-size:10px';
+  b.addEventListener('click', () => { if (_boneSelMesh) reassignBone(_boneSelMesh, key); });
+  _bonePicker.appendChild(b);
 });
 
 // ── Raycasting / painting / sculpting ─────────────────────────────────────────
@@ -684,6 +784,15 @@ c3.addEventListener('mousedown', e => {
     }
     return;
   }
+  if (state.mode === 'sculpt' && state.sculptTool === 'bone') {
+    if (e.button === 2 || e.shiftKey) { isOrbiting = true; return; }
+    if (e.button === 0) {
+      const hit = getHit(e);
+      if (hit && hit.object.userData.part === 'custom') selectBoneMesh(hit.object);
+      else clearBoneSelection();
+    }
+    return;
+  }
   if (e.button === 2 || e.shiftKey) { isOrbiting = true; return; }
   if (state.mode === 'pose') {
     if (state.playing) return;
@@ -748,7 +857,7 @@ const _gLineSph = new THREE.LineBasicMaterial({ color: 0xcba6f7, depthTest: fals
 const ghostFill   = new THREE.Mesh(_gBoxGeo, _gFillAdd);
 const ghostEdge   = new THREE.LineSegments(_gEdgeGeo, _gLineAdd);
 const ghostSphere = new THREE.LineSegments(_gSphGeo, _gLineSph);
-[ghostFill, ghostEdge, ghostSphere].forEach(o => { o.visible = false; o.raycast = () => {}; scene.add(o); });
+[ghostFill, ghostEdge, ghostSphere].forEach(o => { o.visible = false; o.raycast = () => {}; o.layers.set(1); scene.add(o); });
 
 function hideGhost() {
   ghostFill.visible = ghostEdge.visible = ghostSphere.visible = false;
@@ -895,3 +1004,5 @@ function removeCustomBlock(sx, sy, sz) {
     },
   });
 }
+
+lpInit();
