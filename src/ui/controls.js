@@ -1013,4 +1013,10 @@ document.addEventListener('layer-cloth-equip', e => {
   lpRefresh();
 });
 
+document.addEventListener('layer-bone-reassign', e => {
+  const { mesh, newSkKey } = e.detail;
+  reassignBone(mesh, newSkKey);
+  lpRefresh();
+});
+
 lpInit();

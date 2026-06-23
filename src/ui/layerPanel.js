@@ -22,6 +22,10 @@ function _toggle(id) {
 // ── Visibility state ──────────────────────────────────────────────────────────
 const _hidden = new Set();  // set of row ids that are hidden
 
+// ── Drag-and-drop state ───────────────────────────────────────────────────────
+let _dragMesh = null;
+let _dragRowEl = null;
+
 function _setRowVisible(rowId, visible, meshes) {
   if (visible) _hidden.delete(rowId);
   else _hidden.add(rowId);
@@ -54,7 +58,22 @@ function _makeRow(row) {
       document.dispatchEvent(new CustomEvent('layer-cloth-equip', { detail: { clothKey: row.clothKey } }));
     });
   }
-  if (row.draggable) div.draggable = true;
+  if (row.draggable) {
+    div.draggable = true;
+    div.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.id);
+      div.classList.add('lp-dragging');
+      // Store mesh ref on the event target for the drop handler
+      _dragMesh = row.meshes[0];
+      _dragRowEl = div;
+    });
+    div.addEventListener('dragend', () => {
+      div.classList.remove('lp-dragging');
+      _dragMesh = null;
+      _dragRowEl = null;
+    });
+  }
   div.dataset.rowId = row.id;
   div.appendChild(_makeEye(row.id, row.meshes));
   const lbl = document.createElement('span');
@@ -125,6 +144,22 @@ function _makeGroupSection(id, label, rows) {
     _toggle(id);
     toggle.textContent = _collapsed.has(id) ? '▶' : '▼';
     children.style.display = _collapsed.has(id) ? 'none' : '';
+  });
+
+  header.addEventListener('dragover', e => {
+    if (!_dragMesh) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    header.classList.add('drag-over');
+  });
+  header.addEventListener('dragleave', () => {
+    header.classList.remove('drag-over');
+  });
+  header.addEventListener('drop', e => {
+    e.preventDefault();
+    header.classList.remove('drag-over');
+    if (!_dragMesh) return;
+    document.dispatchEvent(new CustomEvent('layer-bone-reassign', { detail: { mesh: _dragMesh, newSkKey: id } }));
   });
 
   return section;
