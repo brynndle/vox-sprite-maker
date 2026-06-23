@@ -19,12 +19,27 @@ function _toggle(id) {
   else _collapsed.add(id);
 }
 
+// ── Visibility state ──────────────────────────────────────────────────────────
+const _hidden = new Set();  // set of row ids that are hidden
+
+function _setRowVisible(rowId, visible, meshes) {
+  if (visible) _hidden.delete(rowId);
+  else _hidden.add(rowId);
+  meshes.forEach(m => { m.visible = visible; });
+}
+
 // ── DOM builders ──────────────────────────────────────────────────────────────
 function _makeEye(id, meshes) {
   const span = document.createElement('span');
-  span.className = 'lp-eye';
+  span.className = 'lp-eye' + (_hidden.has(id) ? ' lp-hidden' : '');
   span.textContent = '👁';
   span.dataset.eyeId = id;
+  span.addEventListener('click', e => {
+    e.stopPropagation();
+    const nowVisible = _hidden.has(id);
+    _setRowVisible(id, nowVisible, meshes);
+    span.classList.toggle('lp-hidden', !nowVisible);
+  });
   return span;
 }
 
@@ -52,8 +67,41 @@ function _makeGroupSection(id, label, rows) {
   const toggle = document.createElement('span');
   toggle.className = 'lp-toggle';
   toggle.textContent = _collapsed.has(id) ? '▶' : '▼';
-  const eye = _makeEye('group-' + id, rows.flatMap(r => r.meshes));
-  eye.dataset.groupEye = id;
+
+  // Create children div first, before eye (eye handler needs it)
+  const children = document.createElement('div');
+  children.className = 'lp-group-children';
+  children.style.display = _collapsed.has(id) ? 'none' : '';
+  rows.forEach(row => children.appendChild(_makeRow(row)));
+
+  // Group eye with cascade handler
+  const groupEyeId = 'group-' + id;
+  const allMeshes = rows.flatMap(r => r.meshes);
+  const eye = document.createElement('span');
+  eye.className = 'lp-eye' + (_hidden.has(groupEyeId) ? ' lp-hidden' : '');
+  eye.textContent = '👁';
+  eye.addEventListener('click', e => {
+    e.stopPropagation();
+    const nowVisible = _hidden.has(groupEyeId);
+    _setRowVisible(groupEyeId, nowVisible, allMeshes);
+    eye.classList.toggle('lp-hidden', !nowVisible);
+    // cascade: update child eye icons in the DOM
+    children.querySelectorAll('.lp-eye').forEach(childEye => {
+      const childId = childEye.dataset.eyeId;
+      if (childId) {
+        if (nowVisible) _hidden.delete(childId);
+        else _hidden.add(childId);
+        childEye.classList.toggle('lp-hidden', !nowVisible);
+      }
+    });
+    // apply visibility to all child meshes individually
+    rows.forEach(row => {
+      if (nowVisible) _hidden.delete(row.id);
+      else _hidden.add(row.id);
+      row.meshes.forEach(m => { m.visible = nowVisible; });
+    });
+  });
+
   const lbl = document.createElement('span');
   lbl.className = 'lp-label';
   lbl.style.fontWeight = '600';
@@ -62,11 +110,6 @@ function _makeGroupSection(id, label, rows) {
   header.appendChild(eye);
   header.appendChild(lbl);
   section.appendChild(header);
-
-  const children = document.createElement('div');
-  children.className = 'lp-group-children';
-  children.style.display = _collapsed.has(id) ? 'none' : '';
-  rows.forEach(row => children.appendChild(_makeRow(row)));
   section.appendChild(children);
 
   header.addEventListener('click', e => {
