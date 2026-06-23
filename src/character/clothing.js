@@ -24,10 +24,10 @@ export function rebuildCloth(SK, root, clothV, getDims) {
   const hipY = LLH + ULH, torsoY = hipY;
   const C = 1;
 
-  function cBlock(cols, rows, depth, color, opts = {}) {
+  function cBlock(cols, rows, depth, color, opts = {}, pieceKey = '') {
     const b = voxBlock(cols, rows, depth, color, opts);
     b.g.userData.isClothGroup = true;
-    b.ms.forEach(m => { m.userData.isCloth = true; clothV.push(m); });
+    b.ms.forEach(m => { m.userData.isCloth = true; m.userData.clothPiece = pieceKey; clothV.push(m); });
     return b;
   }
 
@@ -36,14 +36,14 @@ export function rebuildCloth(SK, root, clothV, getDims) {
     if (!d) return;
     if (slot === 'top') {
       const ext = d.style === 'coat' ? Math.round(sc * 2) : 0;
-      const tb = cBlock(TW + C * 2, TH + ext, TD + C * 2, d.color);
+      const tb = cBlock(TW + C * 2, TH + ext, TD + C * 2, d.color, {}, k);
       tb.g.position.set(-C * 0.5, (torsoY - ext), -C * 0.5);
       root.add(tb.g);
       ['l', 'r'].forEach(s => {
-        const us = cBlock(AW + C, UAH, AW + C, d.color, { roundCorners: true });
+        const us = cBlock(AW + C, UAH, AW + C, d.color, { roundCorners: true }, k);
         us.g.position.set(0, -UAH, 0); SK[s + 'Arm'].add(us.g);
         if (d.style === 'coat') {
-          const ls = cBlock(AW + C, LAH, AW + C, d.color, { roundCorners: true });
+          const ls = cBlock(AW + C, LAH, AW + C, d.color, { roundCorners: true }, k);
           ls.g.position.set(0, -LAH, 0); SK[s + 'Elbow'].add(ls.g);
         }
       });
@@ -51,20 +51,20 @@ export function rebuildCloth(SK, root, clothV, getDims) {
     if (slot === 'legs') {
       const isS = d.style === 'shorts';
       ['l', 'r'].forEach(s => {
-        const ul = cBlock(LW + C, ULH, LW + C, d.color); ul.g.position.set(0, -ULH, 0); SK[s + 'Leg'].add(ul.g);
-        if (!isS) { const ll = cBlock(LW + C, LLH, LW + C, d.color); ll.g.position.set(0, -LLH, 0); SK[s + 'Knee'].add(ll.g); }
+        const ul = cBlock(LW + C, ULH, LW + C, d.color, {}, k); ul.g.position.set(0, -ULH, 0); SK[s + 'Leg'].add(ul.g);
+        if (!isS) { const ll = cBlock(LW + C, LLH, LW + C, d.color, {}, k); ll.g.position.set(0, -LLH, 0); SK[s + 'Knee'].add(ll.g); }
       });
     }
     if (slot === 'feet') {
       ['l', 'r'].forEach(s => {
-        const sh = cBlock(FW + 1, FH + 1, FD + 1, d.color, { roundCorners: true });
+        const sh = cBlock(FW + 1, FH + 1, FD + 1, d.color, { roundCorners: true }, k);
         sh.g.position.set(0, -(LLH + FH + 1), (FD / 2 - LW / 2)); SK[s + 'Knee'].add(sh.g);
       });
     }
     if (slot === 'head') {
-      const brim = cBlock(HW + 2, Math.max(1, Math.round(sc * 0.5)), HD + 2, d.color);
+      const brim = cBlock(HW + 2, Math.max(1, Math.round(sc * 0.5)), HD + 2, d.color, {}, k);
       brim.g.position.set(0, HH, 0); SK.head.add(brim.g);
-      const top = cBlock(HW, Math.max(1, Math.round(sc * 1.5)), HD, d.color, { roundCorners: true });
+      const top = cBlock(HW, Math.max(1, Math.round(sc * 1.5)), HD, d.color, { roundCorners: true }, k);
       top.g.position.set(0, (HH + Math.max(1, Math.round(sc * 0.5))), 0); SK.head.add(top.g);
     }
   });
