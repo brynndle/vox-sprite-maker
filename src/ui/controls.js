@@ -388,7 +388,7 @@ document.getElementById('cloth-save-btn').addEventListener('click', () => {
   const id = _editingClothId || ('c' + Date.now());
   saveCloth(id, { label, slot, style, color });
   closeClothEditor();
-  buildWardrobeGrid();
+  lpRefresh();
 });
 
 document.getElementById('cloth-delete-btn').addEventListener('click', () => {
@@ -401,10 +401,8 @@ document.getElementById('cloth-delete-btn').addEventListener('click', () => {
   }
   deleteCloth(_editingClothId);
   closeClothEditor();
-  buildWardrobeGrid();
+  lpRefresh();
 });
-
-buildWardrobeGrid();
 
 // ── Export buttons ────────────────────────────────────────────────────────────
 document.getElementById('expF').addEventListener('click', exportFrame);
@@ -1004,5 +1002,15 @@ function removeCustomBlock(sx, sy, sz) {
     },
   });
 }
+
+document.addEventListener('layer-cloth-equip', e => {
+  const { clothKey } = e.detail;
+  const def = WDEFS[clothKey] || customWardrobe[clothKey];
+  if (!def) return;
+  if (equipped[def.slot] === clothKey) delete equipped[def.slot];
+  else equipped[def.slot] = clothKey;
+  rebuildCloth(SK, root, clothV, getDims);
+  lpRefresh();
+});
 
 lpInit();

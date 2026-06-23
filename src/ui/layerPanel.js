@@ -46,6 +46,14 @@ function _makeEye(id, meshes) {
 function _makeRow(row) {
   const div = document.createElement('div');
   div.className = 'lp-row' + (row.type === 'cloth' ? ' lp-cloth-row' : '');
+  if (row.type === 'cloth') {
+    div.classList.add(row.isEquipped ? 'lp-equipped' : 'lp-unequipped');
+    div.style.cursor = 'pointer';
+    div.addEventListener('click', e => {
+      if (e.target.classList.contains('lp-eye')) return;
+      document.dispatchEvent(new CustomEvent('layer-cloth-equip', { detail: { clothKey: row.clothKey } }));
+    });
+  }
   if (row.draggable) div.draggable = true;
   div.dataset.rowId = row.id;
   div.appendChild(_makeEye(row.id, row.meshes));
