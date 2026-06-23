@@ -56,12 +56,12 @@ function hideJointInspector() {
 }
 
 // ── Undo buttons ──────────────────────────────────────────────────────────────
-document.getElementById('undo-btn').addEventListener('click', doUndo);
-document.getElementById('redo-btn').addEventListener('click', doRedo);
+document.getElementById('undo-btn').addEventListener('click', () => { doUndo(); lpRefresh(); });
+document.getElementById('redo-btn').addEventListener('click', () => { doRedo(); lpRefresh(); });
 window.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey;
-  if (mod && e.key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
-  if (mod && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) { e.preventDefault(); doRedo(); }
+  if (mod && e.key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); lpRefresh(); }
+  if (mod && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) { e.preventDefault(); doRedo(); lpRefresh(); }
 });
 
 // ── Sculpt tool buttons ───────────────────────────────────────────────────────
@@ -482,6 +482,7 @@ document.getElementById('save-part-btn').addEventListener('click', () => {
   if (!data || !data.length) { alert('No voxels found for this part — sculpt something first!'); return; }
   savePart(selectedEditPart, data);
   updatePartUI();
+  lpRefresh();
 });
 
 document.getElementById('reset-part-btn').addEventListener('click', () => {
@@ -490,6 +491,7 @@ document.getElementById('reset-part-btn').addEventListener('click', () => {
   resetPart(selectedEditPart);
   rebuild(); resetPose(SK, root); captureDefaults();
   updatePartUI();
+  lpRefresh();
 });
 
 updatePartUI();
@@ -958,6 +960,7 @@ function placeCustomBlock(worldPos) {
       savePart('custom', savedParts.custom);
     },
   });
+  lpRefresh();
 }
 
 function removeCustomBlock(sx, sy, sz) {
@@ -1001,6 +1004,7 @@ function removeCustomBlock(sx, sy, sz) {
       savePart('custom', savedParts.custom || []);
     },
   });
+  lpRefresh();
 }
 
 document.addEventListener('layer-cloth-equip', e => {
