@@ -12,7 +12,8 @@ _tabBone.addEventListener('click',   () => { _tabBone.classList.add('on');   _ta
 _tabLayers.addEventListener('click', () => { _tabLayers.classList.add('on'); _tabBone.classList.remove('on');   _layerView.style.display = '';    _boneView.style.display = 'none'; });
 
 // ── Collapse state ────────────────────────────────────────────────────────────
-const _collapsed = new Set();  // set of group ids that are collapsed
+const _collapsed = new Set();     // set of group ids that are collapsed
+const _autoCollapsed = new Set(); // groups collapsed automatically (empty); will auto-expand when populated
 
 function _toggle(id) {
   if (_collapsed.has(id)) _collapsed.delete(id);
@@ -170,7 +171,12 @@ function _renderBoneView() {
   _boneView.innerHTML = '';
   const groups = buildBoneGroupData(bodyV, clothV, SK, root);
   groups.forEach((group, skKey) => {
-    if (group.rows.length === 0 && !_collapsed.has(skKey)) _collapsed.add(skKey); // auto-collapse empty groups once
+    if (group.rows.length === 0) {
+      if (!_collapsed.has(skKey)) { _collapsed.add(skKey); _autoCollapsed.add(skKey); }
+    } else if (_autoCollapsed.has(skKey)) {
+      _collapsed.delete(skKey);
+      _autoCollapsed.delete(skKey);
+    }
     _boneView.appendChild(_makeGroupSection(skKey, group.label, group.rows));
   });
 }

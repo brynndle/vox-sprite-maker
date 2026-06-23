@@ -261,8 +261,8 @@ document.querySelectorAll('[data-s]').forEach(el => {
 
 // ── Color pickers ─────────────────────────────────────────────────────────────
 document.getElementById('skinc').addEventListener('input', e => { state.skin = e.target.value; applySkin(); });
-document.getElementById('hairc').addEventListener('input', e => { state.hairCol = e.target.value; rebuildHair(SK); });
-document.getElementById('featc').addEventListener('input', e => { state.featCol = e.target.value; rebuildFace(SK); });
+document.getElementById('hairc').addEventListener('input', e => { state.hairCol = e.target.value; rebuildHair(SK); lpRefresh(); });
+document.getElementById('featc').addEventListener('input', e => { state.featCol = e.target.value; rebuildFace(SK); lpRefresh(); });
 
 // ── Paint color swatches ──────────────────────────────────────────────────────
 const swC = document.getElementById('swatches');
@@ -291,11 +291,11 @@ function buildPresetUI(id, presets, getActive, onSel) {
   });
 }
 
-buildPresetUI('eye-presets',   EYE_PRESETS,   () => state.activeEyes,   k => { state.activeEyes = k;   rebuildFace(SK); });
-buildPresetUI('brow-presets',  BROW_PRESETS,  () => state.activeBrows,  k => { state.activeBrows = k;  rebuildFace(SK); });
-buildPresetUI('mouth-presets', MOUTH_PRESETS, () => state.activeMouth,  k => { state.activeMouth = k;  rebuildFace(SK); });
-buildPresetUI('nose-presets',  NOSE_PRESETS,  () => state.activeNose,   k => { state.activeNose = k;   rebuildFace(SK); });
-buildPresetUI('hair-presets',  HAIR_PRESETS,  () => state.activeHair,   k => { state.activeHair = k;   rebuildHair(SK); });
+buildPresetUI('eye-presets',   EYE_PRESETS,   () => state.activeEyes,   k => { state.activeEyes = k;   rebuildFace(SK); lpRefresh(); });
+buildPresetUI('brow-presets',  BROW_PRESETS,  () => state.activeBrows,  k => { state.activeBrows = k;  rebuildFace(SK); lpRefresh(); });
+buildPresetUI('mouth-presets', MOUTH_PRESETS, () => state.activeMouth,  k => { state.activeMouth = k;  rebuildFace(SK); lpRefresh(); });
+buildPresetUI('nose-presets',  NOSE_PRESETS,  () => state.activeNose,   k => { state.activeNose = k;   rebuildFace(SK); lpRefresh(); });
+buildPresetUI('hair-presets',  HAIR_PRESETS,  () => state.activeHair,   k => { state.activeHair = k;   rebuildHair(SK); lpRefresh(); });
 
 // ── Wardrobe grid ─────────────────────────────────────────────────────────────
 const STYLES_BY_SLOT = {
@@ -304,43 +304,6 @@ const STYLES_BY_SLOT = {
   feet: ['shoes'],
   head: ['hat'],
 };
-
-const wg = document.getElementById('wgrid');
-
-function buildWardrobeGrid() {
-  wg.innerHTML = '';
-  function addPiece(key, def, isCustom) {
-    const b = document.createElement('button');
-    b.className = 'btn wbtn'; b.dataset.piece = key;
-    if (isCustom) b.style.cssText = 'border-color:#89b4fa';
-    if (equipped[def.slot] === key) b.classList.add('eq');
-
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = def.label;
-    b.appendChild(nameSpan);
-
-    if (isCustom) {
-      const editSpan = document.createElement('span');
-      editSpan.textContent = '✏';
-      editSpan.style.cssText = 'font-size:9px;color:#89b4fa;cursor:pointer;line-height:1.2';
-      editSpan.addEventListener('click', e => { e.stopPropagation(); openClothEditor(key, def); });
-      b.appendChild(editSpan);
-    }
-
-    b.addEventListener('click', () => {
-      if (equipped[def.slot] === key) { delete equipped[def.slot]; b.classList.remove('eq'); }
-      else {
-        const prev = equipped[def.slot];
-        if (prev) document.querySelector(`[data-piece="${prev}"]`)?.classList.remove('eq');
-        equipped[def.slot] = key; b.classList.add('eq');
-      }
-      rebuildCloth(SK, root, clothV, getDims);
-    });
-    wg.appendChild(b);
-  }
-  Object.entries(WDEFS).forEach(([k, d]) => addPiece(k, d, false));
-  Object.entries(customWardrobe).forEach(([k, d]) => addPiece(k, d, true));
-}
 
 // ── Clothing editor ────────────────────────────────────────────────────────────
 let _editingClothId = null;
@@ -612,7 +575,7 @@ Object.entries(BONE_LABELS).forEach(([key, label]) => {
   const b = document.createElement('button');
   b.className = 'btn bone-btn'; b.dataset.bone = key; b.textContent = label;
   b.style.cssText = 'padding:3px 4px;text-align:center;font-size:10px';
-  b.addEventListener('click', () => { if (_boneSelMesh) reassignBone(_boneSelMesh, key); });
+  b.addEventListener('click', () => { if (_boneSelMesh) { reassignBone(_boneSelMesh, key); lpRefresh(); } });
   _bonePicker.appendChild(b);
 });
 
