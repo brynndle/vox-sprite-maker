@@ -298,6 +298,28 @@
         <button class="btn" id="cloth-delete-btn" style="padding:3px 6px;color:#f38ba8;border-color:#f38ba8;display:none">✕</button>
       </div>
     </div>
+    <div class="card">
+      <div class="lbl">Body Parts</div>
+      <div class="wgrid" style="gap:3px;margin-bottom:6px">
+        <button class="btn wbtn" data-editpart="head">Head</button>
+        <button class="btn wbtn" data-editpart="torso">Torso</button>
+        <button class="btn wbtn" data-editpart="arm">Arms</button>
+        <button class="btn wbtn" data-editpart="leg">Legs</button>
+      </div>
+      <div id="part-info" style="font-size:10px;color:#6c7086;margin-bottom:6px;min-height:14px">Select a part to edit or save</div>
+      <div style="display:flex;gap:4px">
+        <button class="btn" id="save-part-btn" style="flex:1;padding:5px" disabled>Save shape</button>
+        <button class="btn" id="reset-part-btn" style="flex:1;padding:5px" disabled>Reset</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="lbl">Export</div>
+      <button class="btn tbtn" id="expF">📷 This frame</button>
+      <button class="btn tbtn" id="expS">🗂 8 dirs (static)</button>
+      <button class="btn tbtn" id="expW">🏃 Walk (512×32)</button>
+      <button class="btn tbtn" id="set-default-btn" style="margin-top:4px">💾 Set as app default</button>
+    </div>
+    <div id="wgrid" style="display:none"></div>
   </div>
 </div>
 <script type="module" src="/src/main.js"></script>
