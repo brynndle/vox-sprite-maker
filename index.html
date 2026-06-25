@@ -7,6 +7,17 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<div id="launcher-root">
+  <div class="ln-topbar">
+    <div class="ln-title">Voxel Sprite Maker</div>
+    <button class="ln-btn" id="ln-open-placeholder">Open File</button>
+    <button class="ln-btn ln-btn-primary" id="ln-new-placeholder">+ New Sprite</button>
+  </div>
+  <div class="ln-gallery">
+    <div class="ln-section-label">Loading sprites…</div>
+  </div>
+</div>
+<div id="editor-root" style="display:none">
 <div id="app">
   <!-- LEFT PANEL -->
   <div class="col">
@@ -256,6 +267,7 @@
       <button class="btn tbtn" id="set-default-btn" style="margin-top:4px">💾 Set as app default</button>
     </div>
   </div>
+</div>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>
