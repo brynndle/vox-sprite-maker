@@ -45,9 +45,6 @@ export async function render() {
       </div>
     </div>
   `;
-
-  document.getElementById('ln-new-btn').addEventListener('click', () => showEditor());
-  document.getElementById('ln-open-btn').addEventListener('click', _openFile);
 }
 
 function _userCard(h) {
@@ -90,6 +87,12 @@ function _silhouette() {
 }
 
 async function _onCardClick(e) {
+  if (e.target.id === 'ln-new-btn' || e.target.closest('[data-action="new"]')) {
+    showEditor(); return;
+  }
+  if (e.target.id === 'ln-open-btn') {
+    _openFile(); return;
+  }
   const card = e.target.closest('[data-action],[data-handle],[data-builtin]');
   if (!card) return;
 
