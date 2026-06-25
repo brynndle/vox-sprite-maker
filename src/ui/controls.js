@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { state, PAL } from '../state.js';
+import { snapshot } from '../persistence/vsmFormat.js';
+import { getCurrentHandle, setCurrentHandle, showLauncher } from './screenManager.js';
+import { saveHandle } from '../persistence/fileStore.js';
+import { render as launcherRender } from './launcher.js';
 import { cam, syncCam, scene } from '../renderer/scene.js';
 import { setOutSize } from '../renderer/pixelOutput.js';
 import { OUT_W, OUT_H } from '../constants.js';
@@ -984,6 +988,40 @@ document.addEventListener('layer-bone-reassign', e => {
   const { mesh, newSkKey } = e.detail;
   reassignBone(mesh, newSkKey);
   lpRefresh();
+});
+
+// ── Home button ─────────────────────────────────────────────────────────────
+document.getElementById('home-btn').addEventListener('click', () => {
+  showLauncher();
+  launcherRender().catch(console.error);
+});
+
+// ── Save button + Cmd/Ctrl+S ─────────────────────────────────────────────────
+async function doSave() {
+  let handle = getCurrentHandle();
+  if (!handle) {
+    try {
+      handle = await window.showSaveFilePicker({
+        suggestedName: 'sprite.vsm',
+        types: [{ description: 'Voxel Sprite', accept: { 'application/json': ['.vsm'] } }],
+      });
+    } catch { return; } // user cancelled
+    setCurrentHandle(handle);
+    await saveHandle(handle).catch(() => {});
+  }
+  try {
+    const writable = await handle.createWritable();
+    await writable.write(snapshot());
+    await writable.close();
+  } catch (err) {
+    console.error('Save failed:', err);
+  }
+}
+
+document.getElementById('save-btn').addEventListener('click', doSave);
+
+window.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); doSave(); }
 });
 
 lpInit();
