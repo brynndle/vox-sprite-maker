@@ -5,6 +5,7 @@ import { renderOutputs } from './renderer/pixelOutput.js';
 import { state } from './state.js';
 import './ui/controls.js';
 import { updateSkeleton, captureDefaults } from './ui/poseEditor.js';
+import { init as launcherInit } from './ui/launcher.js';
 import { showLauncher } from './ui/screenManager.js';
 
 let frameCount = 0;
@@ -21,9 +22,5 @@ rebuild();
 resetPose(SK, root);
 captureDefaults();
 showLauncher();
+launcherInit().catch(console.error);
 loop();
-
-// Temporary — replaced by launcher.js in Task 6
-document.getElementById('ln-new-placeholder')?.addEventListener('click', () => {
-  import('./ui/screenManager.js').then(m => m.showEditor());
-});
