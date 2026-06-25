@@ -6,7 +6,7 @@ import { rebuild, SK, root } from '../character/skeleton.js';
 import { resetPose } from '../animation/poses.js';
 import { captureDefaults } from '../ui/poseEditor.js';
 import { refresh as lpRefresh } from '../ui/layerPanel.js';
-import { encode, DEFAULTS } from './vsmCodec.js';
+import { encode } from './vsmCodec.js';
 
 export function snapshot() {
   return encode({
@@ -60,4 +60,16 @@ export function applySnapshot(decoded) {
   resetPose(SK, root);
   captureDefaults();
   lpRefresh();
+
+  // Sync HTML inputs to loaded state
+  const skinc = document.getElementById('skinc');
+  const hairc = document.getElementById('hairc');
+  const featc = document.getElementById('featc');
+  if (skinc) skinc.value = state.skin;
+  if (hairc) hairc.value = state.hairCol;
+  if (featc) featc.value = state.featCol;
+  document.querySelectorAll('[data-s]').forEach(el => {
+    const key = el.dataset.s;
+    if (key in state.S) el.value = state.S[key];
+  });
 }
