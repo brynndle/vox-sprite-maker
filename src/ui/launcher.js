@@ -96,8 +96,6 @@ async function _onCardClick(e) {
   const card = e.target.closest('[data-action],[data-handle],[data-builtin]');
   if (!card) return;
 
-  if (card.dataset.action === 'new') { showEditor(); return; }
-
   if (card.dataset.builtin) {
     try {
       const res = await fetch(`/defaults/${card.dataset.builtin}.vsm`);
